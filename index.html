@@ -6118,6 +6118,36 @@ function updateSSK(tab, rowId) {
         });
         if (!valid) return;
 
+        // Kalau mode "masuk" (stok jadi bertambah) & model ini punya resep, hitung & catat HPP
+        // otomatis dari bahan baku (FIFO) + biaya lain di resep — TIDAK perlu lagi input qty
+        // ulang di tab Produksi. Kalau resep belum ada, lanjut simpan seperti biasa (HPP = 0,
+        // sama seperti sebelumnya) supaya alur input tidak terblokir.
+        let hppCtx = null;
+        if (inputState.mode === 'masuk') {
+            const totalQtyMasuk = items.reduce((s, i) => s + (i.qty || 0), 0);
+            const resepItems = (masterData.resep || []).filter(r => r.brand === inputState.brandNama && r.model === inputState.modelNama);
+            const itemBahan = resepItems.filter(r => (r.jenis || 'bahan') === 'bahan');
+            const itemBiaya = resepItems.filter(r => r.jenis === 'biaya');
+            if (itemBahan.length > 0 || itemBiaya.length > 0) {
+                const kebutuhan = itemBahan.map(r => {
+                    const bahan = masterData.bahanBaku.find(b => b.id === r.bahanBakuId);
+                    const butuh = r.qtyPerPcs * totalQtyMasuk;
+                    const fifo = bahan ? simulasiFifoBahan(bahan.id, butuh) : { biaya: 0, cukup: false, konsumsi: [] };
+                    return { bahan, butuh, fifo };
+                });
+                const kurang = kebutuhan.find(k => !k.bahan || k.butuh > k.bahan.stok || !k.fifo.cukup);
+                if (kurang) {
+                    showAlert(`Stok bahan "${kurang.bahan ? kurang.bahan.nama : '?'}" tidak cukup untuk menghitung HPP!\nButuh: ${kurang.butuh}\nStok: ${kurang.bahan ? kurang.bahan.stok : 0}`, {type:'danger', title:'⚠️ STOK BAHAN TIDAK CUKUP'});
+                    return;
+                }
+                const biayaBahan = kebutuhan.reduce((s, k) => s + k.fifo.biaya, 0);
+                const biayaTk = itemBiaya.reduce((s, r) => s + ((r.biayaPerPcs || 0) * totalQtyMasuk), 0);
+                const totalHpp = biayaBahan + biayaTk;
+                const hppPerPcs = totalQtyMasuk > 0 ? Math.round(totalHpp / totalQtyMasuk) : 0;
+                hppCtx = { kebutuhan, biayaBahan, biayaTk, totalHpp, hppPerPcs, qty: totalQtyMasuk };
+            }
+        }
+
         _inputIsSaving = true;
         const btnSimpanInput = document.getElementById('btn-simpan-input');
         if (btnSimpanInput) btnSimpanInput.disabled = true;
@@ -6141,6 +6171,32 @@ function updateSSK(tab, rowId) {
 
             appData.riwayatInput.unshift({ id: ri.id, mode: inputState.mode, brand: inputState.brandNama, model: inputState.modelNama, keterangan, tanggal, jam, items: itemsWithId.length ? itemsWithId : items });
 
+            // Kalau HPP berhasil dihitung di atas: konsumsi bahan baku (FIFO) & catat ke riwayat_produksi,
+            // supaya app Laba Rugi bisa langsung baca HPP-nya — tanpa perlu input ulang di tab Produksi.
+            if (hppCtx) {
+                for (const k of hppCtx.kebutuhan) {
+                    const stokBaru = k.bahan.stok - k.butuh;
+                    const { error: bErr } = await sbClient.from('bahan_baku').update({ stok: stokBaru }).eq('id', k.bahan.id);
+                    if (!bErr) k.bahan.stok = stokBaru;
+                    if (k.fifo.konsumsi && k.fifo.konsumsi.length) await eksekusiFifoBahan(k.fifo.konsumsi);
+                    const batchBerikutnya = getBatchAktifBahan(k.bahan.id)[0];
+                    if (batchBerikutnya && batchBerikutnya.hargaBeli !== k.bahan.hargaSatuan) {
+                        const { error: hErr } = await sbClient.from('bahan_baku').update({ harga_satuan: batchBerikutnya.hargaBeli }).eq('id', k.bahan.id);
+                        if (!hErr) k.bahan.hargaSatuan = batchBerikutnya.hargaBeli;
+                    }
+                }
+                const { data: rp, error: rpErr } = await sbClient.from('riwayat_produksi').insert({
+                    brand: inputState.brandNama, model: inputState.modelNama, qty_produksi: hppCtx.qty,
+                    biaya_bahan: hppCtx.biayaBahan, biaya_tenaga_kerja: hppCtx.biayaTk, total_hpp: hppCtx.totalHpp, hpp_per_pcs: hppCtx.hppPerPcs,
+                    keterangan: 'Otomatis dari Input Masuk', tanggal, jam, riwayat_input_id: ri.id
+                }).select().single();
+                if (!rpErr && rp) {
+                    appData.riwayatProduksi.unshift({ id: rp.id, brand: rp.brand, model: rp.model, qtyProduksi: rp.qty_produksi, biayaBahan: rp.biaya_bahan, biayaTenagaKerja: rp.biaya_tenaga_kerja, totalHpp: rp.total_hpp, hppPerPcs: rp.hpp_per_pcs, keterangan: rp.keterangan || '', tanggal: rp.tanggal, jam: rp.jam, riwayatInputId: rp.riwayat_input_id });
+                }
+                if (typeof renderBahanBakuList === 'function') renderBahanBakuList();
+                if (typeof renderRiwayatProduksiList === 'function') renderRiwayatProduksiList();
+            }
+
             inputState.brandId = null; inputState.brandNama = ''; inputState.modelId = null; inputState.modelNama = '';
             document.getElementById('input-brand-display').textContent = 'Pilih brand';
             document.getElementById('input-model-display').textContent = 'Pilih model';
@@ -6152,7 +6208,13 @@ function updateSSK(tab, rowId) {
             tambahVariasiInput();
             renderRiwayatInput();
             renderStokDashboard();
-            showToast(savedMode === 'retur' ? '🔄 Retur disimpan!' : '✅ Data masuk disimpan!');
+            if (savedMode === 'retur') {
+                showToast('🔄 Retur disimpan!');
+            } else if (hppCtx) {
+                showToast(`✅ Data masuk disimpan! HPP: Rp ${hppCtx.hppPerPcs.toLocaleString('id-ID')}/pcs`);
+            } else {
+                showToast('✅ Data masuk disimpan! (Model ini belum punya resep — HPP belum dihitung)');
+            }
         } finally {
             _inputIsSaving = false;
             if (btnSimpanInput) btnSimpanInput.disabled = false;
