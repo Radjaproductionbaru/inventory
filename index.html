@@ -6192,6 +6192,10 @@ function updateSSK(tab, rowId) {
                 }).select().single();
                 if (!rpErr && rp) {
                     appData.riwayatProduksi.unshift({ id: rp.id, brand: rp.brand, model: rp.model, qtyProduksi: rp.qty_produksi, biayaBahan: rp.biaya_bahan, biayaTenagaKerja: rp.biaya_tenaga_kerja, totalHpp: rp.total_hpp, hppPerPcs: rp.hpp_per_pcs, keterangan: rp.keterangan || '', tanggal: rp.tanggal, jam: rp.jam, riwayatInputId: rp.riwayat_input_id });
+                } else if (rpErr) {
+                    console.error('Gagal simpan riwayat_produksi (HPP):', rpErr);
+                    showToast('⚠️ Stok tersimpan, TAPI gagal catat HPP: ' + (rpErr.message || rpErr.details || 'unknown error'));
+                    hppCtx = null; // supaya toast akhir di bawah tidak bilang HPP berhasil dihitung
                 }
                 if (typeof renderBahanBakuList === 'function') renderBahanBakuList();
                 if (typeof renderRiwayatProduksiList === 'function') renderRiwayatProduksiList();
@@ -6215,6 +6219,9 @@ function updateSSK(tab, rowId) {
             } else {
                 showToast('✅ Data masuk disimpan! (Model ini belum punya resep — HPP belum dihitung)');
             }
+        } catch (err) {
+            console.error('Gagal simpan data masuk:', err);
+            showToast('❌ Terjadi error saat simpan: ' + (err && err.message ? err.message : err));
         } finally {
             _inputIsSaving = false;
             if (btnSimpanInput) btnSimpanInput.disabled = false;
