@@ -232,9 +232,11 @@
             width: 100%;
             flex-shrink: 0;
         }
-        /* Kunci tinggi tab INPUT DATA & TRANSAKSI ke layar (tidak ikut memanjang),
-           supaya scroll HANYA terjadi di dalam kolom VARIASI ITEM, bukan di seluruh halaman */
-        #tab-input.tab-content.flex,
+        /* Kunci tinggi tab INPUT DATA (mode STOK MASUK/RETUR, ditandai class input-scroll-locked)
+           & tab TRANSAKSI ke layar (tidak ikut memanjang), supaya scroll HANYA terjadi di
+           dalam kolom VARIASI ITEM, bukan di seluruh halaman. Mode BAHAN BAKU sengaja TIDAK
+           kena rule ini — biar scroll normal seperti tab lain (Master, Riwayat, dll). */
+        #tab-input.tab-content.flex.input-scroll-locked,
         #tab-transaksi.tab-content.flex {
             height: 100dvh;
             height: 100vh;
@@ -246,16 +248,16 @@
                ketutupan action-bar (CLEAR/SIMPAN) + nav bar yang posisinya fixed */
             padding-bottom: 170px;
         }
-        #tab-input.tab-content.flex::after,
+        #tab-input.tab-content.flex.input-scroll-locked::after,
         #tab-transaksi.tab-content.flex::after {
             display: none;
             height: 0;
         }
-        #tab-input .tab-bottom-spacer,
+        #tab-input.input-scroll-locked .tab-bottom-spacer,
         #tab-transaksi .tab-bottom-spacer {
             display: none;
         }
-        /* Body dikunci (tidak bisa scroll) selama tab INPUT DATA / TRANSAKSI aktif */
+        /* Body dikunci (tidak bisa scroll) selama tab INPUT DATA (mode masuk/retur) / TRANSAKSI aktif */
         body.lock-page-scroll {
             overflow: hidden;
             height: 100dvh;
@@ -264,6 +266,13 @@
             top: 0;
             left: 0;
             width: 100%;
+        }
+
+        /* Panel BAHAN BAKU: tidak perlu area scroll khusus lagi — saat mode ini aktif,
+           tab-input TIDAK dapat class input-scroll-locked, jadi halaman (body) scroll
+           normal seperti tab lain, dan panel ini cukup jadi bagian biasa dari alur halaman. */
+        #input-bahan-baku-section.flex {
+            flex-shrink: 0;
         }
 
         .vendor-notif-badge {
@@ -933,7 +942,55 @@
             </div>
             <div class="bg-darkBg p-1 rounded-xl flex border-2 border-borderDark gap-1 flex-shrink-0">
                 <button id="input-mode-masuk" onclick="setInputMode('masuk')" class="flex-1 py-2.5 text-xs font-bold rounded-lg brand-gradient-bg text-black shadow-sm transition-all flex items-center justify-center gap-2"><i class="fa-solid fa-arrow-down text-xs"></i> STOK MASUK</button>
+                <button id="input-mode-bahan" onclick="setInputMode('bahan')" class="flex-1 py-2.5 text-xs font-bold rounded-lg text-black hover:text-black transition-all flex items-center justify-center gap-2"><i class="fa-solid fa-boxes-packing text-xs"></i> BAHAN BAKU</button>
                 <button id="input-mode-retur" onclick="setInputMode('retur')" class="flex-1 py-2.5 text-xs font-bold rounded-lg text-black hover:text-black transition-all flex items-center justify-center gap-2"><i class="fa-solid fa-rotate-left text-xs"></i> RETUR</button>
+            </div>
+            <!-- PANEL BAHAN BAKU (dipindahkan dari halaman Resep & Bahan) -->
+            <div id="input-bahan-baku-section" class="hidden flex-col gap-3 flex-shrink-0">
+                <div class="bg-cardBg rounded-xl p-4 border-2 border-borderDark flex flex-col gap-3">
+                    <div class="flex items-center gap-2 border-b-2 border-borderDark pb-2"><i class="fa-solid fa-boxes-packing brand-text"></i><h3 class="text-sm font-bold text-black tracking-wide">TAMBAH BAHAN BAKU</h3></div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold text-black tracking-wider">BRAND</label><select id="input-bahan-brand" disabled onchange="onInputBahanBrandChange()" class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-2.5 text-xs text-black appearance-none focus:outline-none focus:border-[#FFB144] opacity-50 cursor-not-allowed"><option value="">-- Umum (Semua Brand) --</option></select></div>
+                        <div class="flex flex-col gap-1.5">
+                            <div class="flex items-center justify-between">
+                                <label class="text-[10px] font-bold text-black tracking-wider">MODEL</label>
+                                <label class="relative inline-flex items-center cursor-pointer" title="Aktifkan untuk mengunci bahan ke BRAND & MODEL tertentu (KHUSUS)">
+                                    <input type="checkbox" id="input-bahan-khusus-toggle" class="sr-only peer" onchange="toggleBahanKhususMode(this.checked)">
+                                    <div class="w-8 h-4 bg-gray-300 rounded-full peer-checked:bg-[#FFB144] transition-colors"></div>
+                                    <div class="absolute left-0.5 top-0.5 bg-white w-3 h-3 rounded-full transition-transform peer-checked:translate-x-4 shadow"></div>
+                                </label>
+                            </div>
+                            <select id="input-bahan-model" disabled class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-2.5 text-xs text-black appearance-none focus:outline-none focus:border-[#FFB144] opacity-50 cursor-not-allowed"><option value="">-- Umum (Semua Model) --</option></select>
+                        </div>
+                    </div>
+                    <p class="text-[9px] text-black -mt-1"><span id="bahan-khusus-status-text" class="font-bold brand-text">UMUM (OFF):</span> bahan ini dipakai bersama untuk banyak model (misal benang, kancing). Aktifkan toggle di atas untuk mengunci bahan ke 1 BRAND & MODEL saja (misal kain motif tertentu) — stoknya tidak akan muncul/terpakai di resep model lain.</p>
+                    <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold text-black tracking-wider">NAMA BAHAN</label><input id="input-bahan-nama" type="text" list="list-nama-bahan" autocomplete="off" class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-2.5 text-xs text-black placeholder-black focus:outline-none focus:border-[#FFB144] transition-colors" placeholder="cth: Kain Katun, Benang, Kancing...">
+                    <datalist id="list-nama-bahan"></datalist></div>
+                    <div class="flex flex-col gap-1.5">
+                        <label class="text-[10px] font-bold text-black tracking-wider">WARNA (opsional)</label>
+                        <div class="flex items-center gap-2">
+                            <div id="input-bahan-warna-swatch" class="w-9 h-9 rounded-lg flex-shrink-0 border-2 border-borderDark shadow-inner" style="background:transparent;"></div>
+                            <select id="input-bahan-warna" onchange="onInputBahanWarnaChange()" class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-2.5 text-xs text-black appearance-none focus:outline-none focus:border-[#FFB144] transition-colors"><option value="">-- Tanpa Warna --</option></select>
+                        </div>
+                        <p class="text-[9px] text-black -mt-0.5">Pilih warna kalau bahan ini punya varian warna (mis. kain). Tiap warna disimpan sebagai baris stok terpisah, jadi bisa kelihatan warna mana yang masih ready.</p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold text-black tracking-wider">SATUAN</label><input id="input-bahan-satuan" type="text" list="list-satuan-bahan" autocomplete="off" class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-2.5 text-xs text-black placeholder-black focus:outline-none focus:border-[#FFB144] transition-colors" placeholder="meter, pcs, gulung...">
+                        <datalist id="list-satuan-bahan"></datalist></div>
+                        <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold text-black tracking-wider">HARGA/SATUAN (Rp)</label><input id="input-bahan-harga" type="number" inputmode="numeric" class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-2.5 text-xs text-black placeholder-black focus:outline-none focus:border-[#FFB144] transition-colors" placeholder="0"></div>
+                    </div>
+                    <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold text-black tracking-wider">STOK AWAL</label><input id="input-bahan-stok" type="number" inputmode="numeric" class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-2.5 text-xs text-black placeholder-black focus:outline-none focus:border-[#FFB144] transition-colors" placeholder="0"></div>
+                    <button onclick="simpanBahanBaku()" class="w-full brand-gradient-bg text-black font-bold text-sm py-3 rounded-xl flex justify-center items-center gap-2 submit-btn-shadow mt-1"><i class="fa-solid fa-plus"></i> SIMPAN BAHAN BAKU</button>
+                </div>
+                <div class="bg-cardBg rounded-xl border-2 border-borderDark overflow-hidden">
+                    <div class="brand-gradient-bg text-black text-[10px] font-black flex items-center justify-between px-4 py-2"><span><i class="fa-solid fa-list mr-1"></i>DAFTAR BAHAN BAKU</span><span id="bahan-baku-count" class="bg-black/20 px-2 py-0.5 rounded-full text-[9px]">0 data</span></div>
+                    <div class="grid grid-cols-3 gap-1.5 p-2.5 border-b-2 border-borderDark">
+                        <button type="button" id="bahan-filter-semua" onclick="setBahanBakuFilter('semua')" class="py-2 rounded-lg text-[10px] font-bold transition-all brand-gradient-bg text-black">SEMUA</button>
+                        <button type="button" id="bahan-filter-umum" onclick="setBahanBakuFilter('umum')" class="py-2 rounded-lg text-[10px] font-bold transition-all bg-darkBg text-black opacity-60"><i class="fa-solid fa-globe text-[9px] mr-1"></i>UMUM</button>
+                        <button type="button" id="bahan-filter-khusus" onclick="setBahanBakuFilter('khusus')" class="py-2 rounded-lg text-[10px] font-bold transition-all bg-darkBg text-black opacity-60"><i class="fa-solid fa-lock text-[9px] mr-1"></i>KHUSUS</button>
+                    </div>
+                    <div id="bahan-baku-list" class="flex flex-col divide-y divide-borderDark"><div class="text-center text-black text-[11px] py-8 flex flex-col items-center gap-2"><i class="fa-solid fa-inbox text-2xl opacity-40"></i>Belum ada bahan baku.</div></div>
+                </div>
             </div>
             <div id="retur-info-banner" class="hidden bg-red-500/10 border-2 border-red-500/30 rounded-xl px-4 py-3 flex items-start gap-3 flex-shrink-0">
                 <i class="fa-solid fa-triangle-exclamation text-red-400 mt-0.5 flex-shrink-0"></i>
@@ -950,7 +1007,7 @@
                     <input id="input-retur-keterangan" type="text" class="w-full bg-cardBg border-2 border-red-500/40 rounded-lg pl-9 pr-3 py-2.5 text-xs text-black placeholder-black focus:outline-none focus:border-red-500 transition-colors" placeholder="retur...">
                 </div>
             </div>
-            <div class="flex flex-col gap-3 flex-shrink-0">
+            <div class="flex flex-col gap-3 flex-shrink-0 input-masuk-retur-only">
                 <div id="input-brand-selector" onclick="bukaDropdownInput('brand')" class="bg-cardBg rounded-xl p-5 flex items-center justify-between border-2 border-[#FFB144] cursor-pointer hover:bg-[#fdf6ec] transition-colors" style="box-shadow:0 2px 12px rgba(255,140,0,0.15)">
                     <div class="flex items-center gap-4">
                         <div class="w-12 h-12 rounded-lg brand-gradient-bg flex items-center justify-center text-black"><i class="fa-solid fa-tags text-xl"></i></div>
@@ -966,7 +1023,7 @@
                     <i class="fa-solid fa-chevron-down brand-text text-base"></i>
                 </div>
             </div>
-            <div class="rounded-xl overflow-hidden border-2 border-borderDark bg-cardBg variasi-card-grow">
+            <div class="rounded-xl overflow-hidden border-2 border-borderDark bg-cardBg variasi-card-grow input-masuk-retur-only">
                 <div id="input-tabel-header" class="brand-gradient-bg text-black px-4 py-3 flex items-center justify-between gap-3 flex-shrink-0">
                     <div>
                         <div class="text-[13px] font-black leading-none">VARIASI ITEM</div>
@@ -1022,6 +1079,10 @@
                         <div class="flex items-center justify-between mb-2">
                             <div class="text-[10px] font-black text-black tracking-wider">WARNA</div>
                             <div id="input-sheet-warna-active" class="text-[10px] font-black brand-text truncate max-w-[150px]">Pilih</div>
+                        </div>
+                        <div id="input-sheet-warna-filter-wrap" class="flex gap-1.5 mb-2">
+                            <button type="button" id="input-sheet-warna-filter-bahan" onclick="setInputSheetWarnaFilter('bahan')" class="flex-1 py-1.5 rounded-lg text-[9px] font-bold transition-all brand-gradient-bg text-black"><i class="fa-solid fa-boxes-packing text-[8px] mr-1"></i>SESUAI STOK BAHAN</button>
+                            <button type="button" id="input-sheet-warna-filter-semua" onclick="setInputSheetWarnaFilter('semua')" class="flex-1 py-1.5 rounded-lg text-[9px] font-bold transition-all bg-darkBg text-black opacity-60">SEMUA WARNA</button>
                         </div>
                         <div id="input-sheet-warna-list" class="input-choice-grid"></div>
                     </div>
@@ -1240,12 +1301,24 @@
                     <h2 class="display-brand-name text-[10px] font-bold text-[#000000] tracking-[0.15em] leading-none mt-0.5 uppercase">RADJA PRODUCTION</h2>
                 </div>
             </div>
-            <div class="bg-darkBg p-1 rounded-xl flex border-2 border-borderDark gap-0.5 overflow-x-auto no-scrollbar">
+            <!-- GROUP SWITCHER: MASTER PRODUKSI vs MASTER HPP -->
+            <div class="bg-darkBg p-1 rounded-xl flex border-2 border-borderDark gap-0.5">
+                <button onclick="switchMasterGroup('produksi')" id="master-group-produksi" class="flex-1 py-2.5 text-[11px] font-black rounded-lg bg-cardBg brand-text shadow-sm transition-all flex items-center justify-center gap-1.5"><i class="fa-solid fa-industry text-xs"></i> MASTER PRODUKSI</button>
+                <button onclick="switchMasterGroup('hpp')" id="master-group-hpp" class="flex-1 py-2.5 text-[11px] font-black rounded-lg text-black hover:text-black transition-all flex items-center justify-center gap-1.5"><i class="fa-solid fa-coins text-xs"></i> MASTER HPP</button>
+            </div>
+
+            <div id="master-subtabs-produksi" class="bg-darkBg p-1 rounded-xl flex border-2 border-borderDark gap-0.5 overflow-x-auto no-scrollbar">
                 <button onclick="switchMasterTab('vendor')" id="master-tab-vendor" class="whitespace-nowrap flex-1 py-2 text-[10px] font-bold rounded-lg bg-cardBg brand-text shadow-sm transition-all"><i class="fa-solid fa-truck-fast mr-1"></i>VENDOR</button>
                 <button onclick="switchMasterTab('brand')" id="master-tab-brand" class="whitespace-nowrap flex-1 py-2 text-[10px] font-bold rounded-lg text-black hover:text-black transition-all"><i class="fa-solid fa-tags mr-1"></i>BRAND</button>
                 <button onclick="switchMasterTab('model')" id="master-tab-model" class="whitespace-nowrap flex-1 py-2 text-[10px] font-bold rounded-lg text-black hover:text-black transition-all"><i class="fa-solid fa-shirt mr-1"></i>MODEL</button>
                 <button onclick="switchMasterTab('warna')" id="master-tab-warna" class="whitespace-nowrap flex-1 py-2 text-[10px] font-bold rounded-lg text-black hover:text-black transition-all"><i class="fa-solid fa-palette mr-1"></i>WARNA</button>
                 <button onclick="switchMasterTab('ukuran')" id="master-tab-ukuran" class="whitespace-nowrap flex-1 py-2 text-[10px] font-bold rounded-lg text-black hover:text-black transition-all"><i class="fa-solid fa-ruler mr-1"></i>UKURAN</button>
+            </div>
+
+            <div id="master-subtabs-hpp" class="hidden bg-darkBg p-1 rounded-xl border-2 border-borderDark gap-0.5 overflow-x-auto no-scrollbar">
+                <button onclick="switchMasterTab('satuan')" id="master-tab-satuan" class="whitespace-nowrap flex-1 py-2 text-[10px] font-bold rounded-lg bg-cardBg brand-text shadow-sm transition-all"><i class="fa-solid fa-scale-balanced mr-1"></i>SATUAN</button>
+                <button onclick="switchMasterTab('bahan')" id="master-tab-bahan" class="whitespace-nowrap flex-1 py-2 text-[10px] font-bold rounded-lg text-black hover:text-black transition-all"><i class="fa-solid fa-boxes-packing mr-1"></i>NAMA BAHAN</button>
+                <button onclick="switchMasterTab('resep')" id="master-tab-resep" class="whitespace-nowrap flex-1 py-2 text-[10px] font-bold rounded-lg text-black hover:text-black transition-all"><i class="fa-solid fa-list-check mr-1"></i>RESEP</button>
             </div>
 
             <!-- PANEL VENDOR -->
@@ -1330,142 +1403,102 @@
                 </div>
             </div>
 
-            <!-- DANGER ZONE: HAPUS DATA (Owner Only) -->
-            <div class="mt-2 bg-cardBg rounded-xl border-2 border-red-500/30 flex flex-col overflow-hidden">
-                <div class="flex items-center justify-between px-4 py-3 cursor-pointer select-none" onclick="toggleCollapse('danger-collapse','danger-chevron')">
-                    <div class="flex items-center gap-2">
-                        <div class="w-7 h-7 rounded-lg bg-red-500/15 border-2 border-red-500/30 flex items-center justify-center flex-shrink-0">
-                            <i class="fa-solid fa-triangle-exclamation text-red-400 text-[11px]"></i>
-                        </div>
-                        <div>
-                            <h3 class="text-sm font-black text-red-400 tracking-wide">DANGER ZONE</h3>
-                            <p class="text-[9px] text-black mt-0.5">Aksi ini tidak bisa dibatalkan</p>
-                        </div>
+            <!-- PANEL SATUAN (custom, terpisah dari satuan otomatis di Bahan Baku) -->
+            <div id="master-panel-satuan" class="hidden flex-col gap-3">
+                <div class="bg-cardBg rounded-xl p-4 border-2 border-borderDark flex flex-col gap-3">
+                    <div class="flex items-center gap-2 border-b-2 border-borderDark pb-2"><i class="fa-solid fa-scale-balanced brand-text"></i><h3 class="text-sm font-bold text-black tracking-wide">TAMBAH SATUAN</h3></div>
+                    <div class="bg-darkBg rounded-xl p-3 border-2 border-borderDark flex items-start gap-2">
+                        <i class="fa-solid fa-circle-info brand-text text-sm mt-0.5 flex-shrink-0"></i>
+                        <p class="text-[9px] text-black leading-relaxed">Satuan yang ditambahkan di sini akan muncul di dropdown pilihan SATUAN saat menambah Bahan Baku.</p>
                     </div>
-                    <i id="danger-chevron" class="fa-solid fa-chevron-down text-red-400 text-xs collapse-chevron"></i>
+                    <div class="rounded-xl overflow-hidden border-2 border-borderDark">
+                        <div class="brand-gradient-bg text-black text-[10px] font-black grid grid-cols-12 py-1.5 px-2 text-center items-center"><div class="col-span-11 text-left">NAMA SATUAN</div><div class="col-span-1"></div></div>
+                        <div id="satuan-rows-container" class="flex flex-col divide-y divide-borderDark"></div>
+                    </div>
+                    <button onclick="tambahSatuanRow()" class="w-full py-2.5 rounded-lg dashed-border-brand brand-text font-medium text-sm flex items-center justify-center gap-2 hover:bg-[#fdf6ec] mt-1"><i class="fa-solid fa-plus"></i> Tambah Satuan Lain</button>
+                    <button onclick="simpanSatuanCustom()" class="w-full brand-gradient-bg text-black font-bold text-sm py-3 rounded-xl flex justify-center items-center gap-2 submit-btn-shadow"><i class="fa-solid fa-floppy-disk"></i> SIMPAN SATUAN</button>
                 </div>
-                <div id="danger-collapse" class="collapse-body collapsed flex flex-col gap-3 px-4 py-4 border-t-2 border-red-500/20">
-
-                    <!-- Hapus Transaksi -->
-                    <div class="bg-darkBg rounded-xl p-3 border-2 border-red-500/20">
-                        <div class="flex items-start justify-between gap-3">
-                            <div class="flex-1 min-w-0">
-                                <div class="text-[11px] font-black text-black flex items-center gap-1.5">
-                                    <i class="fa-solid fa-handshake text-red-400 text-[10px]"></i>
-                                    Hapus Semua Transaksi
-                                </div>
-                                <p class="text-[9px] text-black mt-1 leading-relaxed">Menghapus semua data transaksi, item transaksi, dan pelunasan. Stok akan kembali seperti sebelum ada penjualan.</p>
-                            </div>
-                            <button onclick="hapusSemuaTransaksi()" class="flex-shrink-0 px-3 py-2 bg-red-500/10 border-2 border-red-500/40 text-red-400 text-[10px] font-black rounded-lg hover:bg-red-500/20 transition-colors whitespace-nowrap">
-                                <i class="fa-solid fa-trash-can mr-1"></i> HAPUS
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Hapus Riwayat Input -->
-                    <div class="bg-darkBg rounded-xl p-3 border-2 border-red-500/20">
-                        <div class="flex items-start justify-between gap-3">
-                            <div class="flex-1 min-w-0">
-                                <div class="text-[11px] font-black text-black flex items-center gap-1.5">
-                                    <i class="fa-solid fa-boxes-stacked text-red-400 text-[10px]"></i>
-                                    Hapus Semua Riwayat Input Stok
-                                </div>
-                                <p class="text-[9px] text-black mt-1 leading-relaxed">Menghapus semua riwayat stok masuk & retur. Stok semua barang akan menjadi 0.</p>
-                            </div>
-                            <button onclick="hapusSemuaRiwayatInput()" class="flex-shrink-0 px-3 py-2 bg-red-500/10 border-2 border-red-500/40 text-red-400 text-[10px] font-black rounded-lg hover:bg-red-500/20 transition-colors whitespace-nowrap">
-                                <i class="fa-solid fa-trash-can mr-1"></i> HAPUS
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Hapus Master Data -->
-                    <div class="bg-darkBg rounded-xl p-3 border-2 border-red-500/20">
-                        <div class="flex items-start justify-between gap-3">
-                            <div class="flex-1 min-w-0">
-                                <div class="text-[11px] font-black text-black flex items-center gap-1.5">
-                                    <i class="fa-solid fa-database text-red-400 text-[10px]"></i>
-                                    Hapus Semua Master Data
-                                </div>
-                                <p class="text-[9px] text-black mt-1 leading-relaxed">Menghapus semua data vendor, brand, model, warna, dan ukuran. Lakukan setelah hapus transaksi & stok.</p>
-                            </div>
-                            <button onclick="hapusSemuaMasterData()" class="flex-shrink-0 px-3 py-2 bg-red-500/10 border-2 border-red-500/40 text-red-400 text-[10px] font-black rounded-lg hover:bg-red-500/20 transition-colors whitespace-nowrap">
-                                <i class="fa-solid fa-trash-can mr-1"></i> HAPUS
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Hapus SEMUA (reset total) -->
-                    <div class="mt-1 pt-3 border-t-2 border-red-500/20">
-                        <button onclick="hapusSemuaData()" class="w-full py-3.5 bg-red-600 hover:bg-red-700 text-black font-black text-sm rounded-xl flex items-center justify-center gap-2 transition-colors shadow-[0_4px_15px_rgba(220,38,38,0.3)]">
-                            <i class="fa-solid fa-bomb text-base"></i>
-                            RESET TOTAL — HAPUS SEMUA DATA
-                        </button>
-                        <p class="text-[9px] text-black text-center mt-2">Menghapus semua transaksi, stok, master data sekaligus. Database bersih total.</p>
-                    </div>
-
+                <div class="bg-cardBg rounded-xl border-2 border-borderDark overflow-hidden">
+                    <div class="brand-gradient-bg text-black text-[10px] font-black flex items-center justify-between px-4 py-2"><span><i class="fa-solid fa-list mr-1"></i>DAFTAR SATUAN</span><span id="satuan-count" class="bg-black/20 px-2 py-0.5 rounded-full text-[9px]">0 data</span></div>
+                    <div id="satuan-list" class="flex flex-col divide-y divide-borderDark"><div class="text-center text-black text-[11px] py-8 flex flex-col items-center gap-2"><i class="fa-solid fa-inbox text-2xl opacity-40"></i>Belum ada satuan custom.</div></div>
                 </div>
+            </div>
+
+            <!-- PANEL NAMA BAHAN (master nama bahan baku, untuk mengisi dropdown NAMA BAHAN di Bahan Baku) -->
+            <div id="master-panel-bahan" class="hidden flex-col gap-3">
+                <div class="bg-cardBg rounded-xl p-4 border-2 border-borderDark flex flex-col gap-3">
+                    <div class="flex items-center gap-2 border-b-2 border-borderDark pb-2"><i class="fa-solid fa-boxes-packing brand-text"></i><h3 class="text-sm font-bold text-black tracking-wide">TAMBAH NAMA BAHAN</h3></div>
+                    <div class="bg-darkBg rounded-xl p-3 border-2 border-borderDark flex items-start gap-2">
+                        <i class="fa-solid fa-circle-info brand-text text-sm mt-0.5 flex-shrink-0"></i>
+                        <p class="text-[9px] text-black leading-relaxed">Nama bahan yang ditambahkan di sini akan muncul di dropdown pilihan NAMA BAHAN saat menambah Bahan Baku. Pilih BRAND supaya dropdown-nya nanti otomatis tersaring sesuai BRAND yang dipilih di Bahan Baku. Kosongkan BRAND jika nama bahan ini berlaku untuk semua brand.</p>
+                    </div>
+                    <div class="rounded-xl overflow-hidden border-2 border-borderDark">
+                        <div class="brand-gradient-bg text-black text-[10px] font-black grid grid-cols-12 py-1.5 px-2 text-center items-center"><div class="col-span-6 text-left">NAMA BAHAN</div><div class="col-span-5 text-left">BRAND</div><div class="col-span-1"></div></div>
+                        <div id="bahan-nama-rows-container" class="flex flex-col divide-y divide-borderDark"></div>
+                    </div>
+                    <button onclick="tambahNamaBahanRow()" class="w-full py-2.5 rounded-lg dashed-border-brand brand-text font-medium text-sm flex items-center justify-center gap-2 hover:bg-[#fdf6ec] mt-1"><i class="fa-solid fa-plus"></i> Tambah Nama Bahan Lain</button>
+                    <button onclick="simpanNamaBahanCustom()" class="w-full brand-gradient-bg text-black font-bold text-sm py-3 rounded-xl flex justify-center items-center gap-2 submit-btn-shadow"><i class="fa-solid fa-floppy-disk"></i> SIMPAN NAMA BAHAN</button>
+                </div>
+                <div class="bg-cardBg rounded-xl border-2 border-borderDark overflow-hidden">
+                    <div class="brand-gradient-bg text-black text-[10px] font-black flex items-center justify-between px-4 py-2"><span><i class="fa-solid fa-list mr-1"></i>DAFTAR NAMA BAHAN</span><span id="bahan-nama-count" class="bg-black/20 px-2 py-0.5 rounded-full text-[9px]">0 data</span></div>
+                    <div id="bahan-nama-filter-chips" class="flex gap-1.5 overflow-x-auto no-scrollbar px-3 py-2 bg-darkBg border-b-2 border-borderDark"></div>
+                    <div id="bahan-nama-list" class="flex flex-col divide-y divide-borderDark"><div class="text-center text-black text-[11px] py-8 flex flex-col items-center gap-2"><i class="fa-solid fa-inbox text-2xl opacity-40"></i>Belum ada nama bahan.</div></div>
+                </div>
+            </div>
+
+            <!-- PANEL RESEP / BOM (dipindahkan dari halaman Resep & Bahan) -->
+            <!-- Alur baru: pilih brand & model -> tambah beberapa bahan/biaya ke DRAFT -> baru SIMPAN sekaligus jadi 1 resep model -->
+            <div id="master-panel-resep" class="hidden flex-col gap-3">
+                <div class="bg-cardBg rounded-xl p-4 border-2 border-borderDark flex flex-col gap-3">
+                    <div class="flex items-center gap-2 border-b-2 border-borderDark pb-2"><i class="fa-solid fa-list-check brand-text"></i><h3 class="text-sm font-bold text-black tracking-wide">SUSUN RESEP (BOM)</h3></div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold text-black tracking-wider">BRAND</label><select id="resep-pilih-brand" onchange="onResepBrandChange()" class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-2.5 text-xs text-black appearance-none focus:outline-none focus:border-[#FFB144]"><option value="">-- Brand --</option></select></div>
+                        <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold text-black tracking-wider">MODEL</label><select id="resep-pilih-model" onchange="onResepModelChange()" class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-2.5 text-xs text-black appearance-none focus:outline-none focus:border-[#FFB144]"><option value="">-- Model --</option></select></div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-1.5 bg-darkBg rounded-lg p-1 border-2 border-borderDark">
+                        <button type="button" onclick="setResepInputMode('bahan')" id="resep-mode-bahan-btn" class="py-2 rounded-lg text-[10px] font-bold transition-all brand-gradient-bg text-black"><i class="fa-solid fa-scissors mr-1"></i>BAHAN BAKU</button>
+                        <button type="button" onclick="setResepInputMode('biaya')" id="resep-mode-biaya-btn" class="py-2 rounded-lg text-[10px] font-bold transition-all text-black opacity-50"><i class="fa-solid fa-coins mr-1"></i>BIAYA LAIN</button>
+                    </div>
+
+                    <div id="resep-input-bahan" class="grid grid-cols-[1fr_90px] gap-2 items-end">
+                        <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold text-black tracking-wider">BAHAN BAKU</label><select id="resep-pilih-bahan" class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-2.5 text-xs text-black appearance-none focus:outline-none focus:border-[#FFB144]"><option value="">-- Bahan --</option></select></div>
+                        <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold text-black tracking-wider">QTY/PCS</label><input id="resep-qty-per-pcs" type="number" step="any" inputmode="decimal" class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-2.5 text-xs text-black focus:outline-none focus:border-[#FFB144]" placeholder="0"></div>
+                    </div>
+                    <div id="resep-input-biaya" class="hidden flex flex-col gap-2">
+                        <div class="bg-darkBg/40 border-2 border-dashed border-borderDark rounded-lg p-2.5 flex flex-col gap-2">
+                            <div class="text-[9px] font-black text-black tracking-wider opacity-70"><i class="fa-solid fa-link mr-1"></i>AMBIL DARI PAYROLL &nbsp;(BRAND + BAGIAN + PEKERJAAN)</div>
+                            <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold text-black tracking-wider">BRAND (sesuai data Payroll)</label><select id="resep-payroll-brand" onchange="onResepPayrollBrandChange()" class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-2.5 text-xs text-black appearance-none focus:outline-none focus:border-[#FFB144]"><option value="">-- Brand (Payroll) --</option></select></div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold text-black tracking-wider">BAGIAN</label><select id="resep-payroll-bagian" onchange="onResepPayrollBagianChange()" class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-2.5 text-xs text-black appearance-none focus:outline-none focus:border-[#FFB144]"><option value="">-- Bagian --</option></select></div>
+                                <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold text-black tracking-wider">PEKERJAAN</label><select id="resep-payroll-pekerjaan" onchange="onResepPayrollPekerjaanChange()" class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-2.5 text-xs text-black appearance-none focus:outline-none focus:border-[#FFB144]"><option value="">-- Pekerjaan --</option></select></div>
+                            </div>
+                            <p id="resep-payroll-info" class="text-[9px] text-black leading-relaxed">Pilih Brand (Payroll) di atas dulu, lalu pilih Bagian &amp; Pekerjaan sesuai yang ada di Payroll.</p>
+                        </div>
+                        <div class="grid grid-cols-[1fr_110px] gap-2 items-end">
+                            <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold text-black tracking-wider">NAMA BIAYA (Jahit, Obras, dll)</label><input id="resep-nama-biaya" type="text" class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-2.5 text-xs text-black focus:outline-none focus:border-[#FFB144]" placeholder="Contoh: Biaya Obras"></div>
+                            <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold text-black tracking-wider">RP/PCS</label><input id="resep-biaya-per-pcs" type="number" step="any" inputmode="decimal" class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-2.5 text-xs text-black focus:outline-none focus:border-[#FFB144]" placeholder="0"></div>
+                        </div>
+                    </div>
+
+                    <button onclick="tambahResepDraftItem()" class="w-full brand-gradient-bg text-black font-bold text-sm py-3 rounded-xl flex justify-center items-center gap-2 submit-btn-shadow"><i class="fa-solid fa-plus"></i> TAMBAH KE DRAFT</button>
+                    <p class="text-[9px] text-black -mt-1">Kumpulkan dulu semua bahan & biaya (jahit, obras, dll) ke draft di bawah, baru klik SIMPAN RESEP di bagian bawah agar tersimpan jadi satu kesatuan untuk model ini.</p>
+                </div>
+                <div class="bg-cardBg rounded-xl border-2 border-borderDark overflow-hidden">
+                    <div class="brand-gradient-bg text-black text-[10px] font-black flex items-center justify-between px-4 py-2"><span><i class="fa-solid fa-list mr-1"></i>KOMPOSISI RESEP (DRAFT)</span><span id="resep-bom-count" class="bg-black/20 px-2 py-0.5 rounded-full text-[9px]">0 data</span></div>
+                    <div id="resep-bom-list" class="flex flex-col divide-y divide-borderDark"><div class="text-center text-black text-[11px] py-8 flex flex-col items-center gap-2"><i class="fa-solid fa-inbox text-2xl opacity-40"></i>Pilih brand & model dulu.</div></div>
+                    <div class="flex items-center justify-between px-4 py-2.5 border-t-2 border-borderDark bg-darkBg/40">
+                        <span class="text-[10px] font-bold text-black">ESTIMASI HPP / PCS</span>
+                        <span id="resep-estimasi-hpp" class="text-xs font-black brand-text">Rp 0</span>
+                    </div>
+                </div>
+                <button onclick="simpanResepDraft()" id="resep-simpan-btn" class="w-full bg-emerald-500 border-2 border-emerald-700 text-black font-black text-sm py-3.5 rounded-xl flex justify-center items-center gap-2 submit-btn-shadow"><i class="fa-solid fa-floppy-disk"></i> SIMPAN RESEP <span id="resep-dirty-badge" class="hidden bg-black/20 px-2 py-0.5 rounded-full text-[9px] ml-1">belum disimpan</span></button>
             </div>
 
         <div style="height:90px;flex-shrink:0;"></div>
         </div>
 
         <!-- TAB RESEP (BAHAN BAKU + BOM) -->
-        <div id="tab-resep" class="tab-content hidden flex-col p-4 gap-4 relative z-10" >
-            <div class="flex items-stretch -mx-4 -mt-4 mb-2 shadow-[0_4px_16px_rgba(255,140,0,0.35)] brand-gradient-bg rounded-b-2xl overflow-hidden">
-                <div class="w-20 h-[72px] flex items-center justify-center flex-shrink-0 z-10 relative bg-black/5 border-r-2 border-black/10"><i class="fa-solid fa-flask text-3xl text-[#000000]"></i></div>
-                <div class="h-[72px] flex flex-col justify-center px-4 flex-grow z-10 relative">
-                    <h1 class="text-[26px] font-black text-[#000000] leading-none tracking-wide mb-1">RESEP <span class="text-black">& BAHAN</span></h1>
-                    <div class="w-full h-[1.5px] bg-[#ffffff]/30 mb-1"></div>
-                    <h2 class="display-brand-name text-[10px] font-bold text-[#000000] tracking-[0.15em] leading-none mt-0.5 uppercase">RADJA PRODUCTION</h2>
-                </div>
-            </div>
-
-            <div class="bg-darkBg p-1 rounded-xl flex border-2 border-borderDark gap-0.5 overflow-x-auto no-scrollbar">
-                <button onclick="switchResepTab('bahan')" id="resep-tab-bahan" class="whitespace-nowrap flex-1 py-2 text-[10px] font-bold rounded-lg bg-cardBg brand-text shadow-sm transition-all"><i class="fa-solid fa-boxes-packing mr-1"></i>BAHAN BAKU</button>
-                <button onclick="switchResepTab('bom')" id="resep-tab-bom" class="whitespace-nowrap flex-1 py-2 text-[10px] font-bold rounded-lg text-black hover:text-black transition-all"><i class="fa-solid fa-list-check mr-1"></i>RESEP / BOM</button>
-            </div>
-
-            <!-- PANEL BAHAN BAKU -->
-            <div id="resep-panel-bahan" class="flex flex-col gap-3">
-                <div class="bg-cardBg rounded-xl p-4 border-2 border-borderDark flex flex-col gap-3">
-                    <div class="flex items-center gap-2 border-b-2 border-borderDark pb-2"><i class="fa-solid fa-boxes-packing brand-text"></i><h3 class="text-sm font-bold text-black tracking-wide">TAMBAH BAHAN BAKU</h3></div>
-                    <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold text-black tracking-wider">NAMA BAHAN</label><input id="input-bahan-nama" type="text" class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-2.5 text-xs text-black placeholder-black focus:outline-none focus:border-[#FFB144] transition-colors" placeholder="cth: Kain Katun, Benang, Kancing..."></div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold text-black tracking-wider">SATUAN</label><input id="input-bahan-satuan" type="text" class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-2.5 text-xs text-black placeholder-black focus:outline-none focus:border-[#FFB144] transition-colors" placeholder="meter, pcs, gulung..."></div>
-                        <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold text-black tracking-wider">HARGA/SATUAN (Rp)</label><input id="input-bahan-harga" type="number" inputmode="numeric" class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-2.5 text-xs text-black placeholder-black focus:outline-none focus:border-[#FFB144] transition-colors" placeholder="0"></div>
-                    </div>
-                    <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold text-black tracking-wider">STOK AWAL</label><input id="input-bahan-stok" type="number" inputmode="numeric" class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-2.5 text-xs text-black placeholder-black focus:outline-none focus:border-[#FFB144] transition-colors" placeholder="0"></div>
-                    <button onclick="simpanBahanBaku()" class="w-full brand-gradient-bg text-black font-bold text-sm py-3 rounded-xl flex justify-center items-center gap-2 submit-btn-shadow mt-1"><i class="fa-solid fa-plus"></i> SIMPAN BAHAN BAKU</button>
-                </div>
-                <div class="bg-cardBg rounded-xl border-2 border-borderDark overflow-hidden">
-                    <div class="brand-gradient-bg text-black text-[10px] font-black flex items-center justify-between px-4 py-2"><span><i class="fa-solid fa-list mr-1"></i>DAFTAR BAHAN BAKU</span><span id="bahan-baku-count" class="bg-black/20 px-2 py-0.5 rounded-full text-[9px]">0 data</span></div>
-                    <div id="bahan-baku-list" class="flex flex-col divide-y divide-borderDark"><div class="text-center text-black text-[11px] py-8 flex flex-col items-center gap-2"><i class="fa-solid fa-inbox text-2xl opacity-40"></i>Belum ada bahan baku.</div></div>
-                </div>
-            </div>
-
-            <!-- PANEL RESEP / BOM -->
-            <div id="resep-panel-bom" class="hidden flex-col gap-3">
-                <div class="bg-cardBg rounded-xl p-4 border-2 border-borderDark flex flex-col gap-3">
-                    <div class="flex items-center gap-2 border-b-2 border-borderDark pb-2"><i class="fa-solid fa-list-check brand-text"></i><h3 class="text-sm font-bold text-black tracking-wide">SUSUN RESEP (BOM)</h3></div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold text-black tracking-wider">BRAND</label><select id="resep-pilih-brand" onchange="onResepBrandChange()" class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-2.5 text-xs text-black appearance-none focus:outline-none focus:border-[#FFB144]"><option value="">-- Brand --</option></select></div>
-                        <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold text-black tracking-wider">MODEL</label><select id="resep-pilih-model" onchange="renderResepBomList()" class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-2.5 text-xs text-black appearance-none focus:outline-none focus:border-[#FFB144]"><option value="">-- Model --</option></select></div>
-                    </div>
-                    <div class="grid grid-cols-[1fr_90px] gap-2 items-end">
-                        <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold text-black tracking-wider">BAHAN BAKU</label><select id="resep-pilih-bahan" class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-2.5 text-xs text-black appearance-none focus:outline-none focus:border-[#FFB144]"><option value="">-- Bahan --</option></select></div>
-                        <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold text-black tracking-wider">QTY/PCS</label><input id="resep-qty-per-pcs" type="number" step="any" inputmode="decimal" class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-2.5 text-xs text-black focus:outline-none focus:border-[#FFB144]" placeholder="0"></div>
-                    </div>
-                    <button onclick="tambahResepItem()" class="w-full brand-gradient-bg text-black font-bold text-sm py-3 rounded-xl flex justify-center items-center gap-2 submit-btn-shadow"><i class="fa-solid fa-plus"></i> TAMBAH KE RESEP</button>
-                </div>
-                <div class="bg-cardBg rounded-xl border-2 border-borderDark overflow-hidden">
-                    <div class="brand-gradient-bg text-black text-[10px] font-black flex items-center justify-between px-4 py-2"><span><i class="fa-solid fa-list mr-1"></i>KOMPOSISI RESEP</span><span id="resep-bom-count" class="bg-black/20 px-2 py-0.5 rounded-full text-[9px]">0 data</span></div>
-                    <div id="resep-bom-list" class="flex flex-col divide-y divide-borderDark"><div class="text-center text-black text-[11px] py-8 flex flex-col items-center gap-2"><i class="fa-solid fa-inbox text-2xl opacity-40"></i>Pilih brand & model dulu.</div></div>
-                </div>
-            </div>
-
-        <div style="height:90px;flex-shrink:0;"></div>
-        </div>
-
         <!-- TAB PRODUKSI -->
         <div id="tab-produksi" class="tab-content hidden flex-col p-4 gap-4 relative z-10" >
             <div class="flex items-stretch -mx-4 -mt-4 mb-2 shadow-[0_4px_16px_rgba(255,140,0,0.35)] brand-gradient-bg rounded-b-2xl overflow-hidden">
@@ -1481,9 +1514,9 @@
                 <div class="flex items-center gap-2 border-b-2 border-borderDark pb-2"><i class="fa-solid fa-shirt brand-text"></i><h3 class="text-sm font-bold text-black tracking-wide">PILIH MODEL PRODUKSI</h3></div>
                 <div class="grid grid-cols-2 gap-2">
                     <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold text-black tracking-wider">BRAND</label><select id="produksi-pilih-brand" onchange="onProduksiBrandChange()" class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-2.5 text-xs text-black appearance-none focus:outline-none focus:border-[#FFB144]"><option value="">-- Brand --</option></select></div>
-                    <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold text-black tracking-wider">MODEL</label><select id="produksi-pilih-model" onchange="renderProduksiBahanPreview()" class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-2.5 text-xs text-black appearance-none focus:outline-none focus:border-[#FFB144]"><option value="">-- Model --</option></select></div>
+                    <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold text-black tracking-wider">MODEL</label><select id="produksi-pilih-model" onchange="onProduksiModelChange()" class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-2.5 text-xs text-black appearance-none focus:outline-none focus:border-[#FFB144]"><option value="">-- Model --</option></select></div>
                 </div>
-                <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold text-black tracking-wider">QTY PRODUKSI (PCS)</label><input id="produksi-qty" type="number" inputmode="numeric" oninput="renderProduksiBahanPreview()" class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-2.5 text-xs text-black focus:outline-none focus:border-[#FFB144]" placeholder="0"></div>
+                <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold text-black tracking-wider">QTY PRODUKSI (PCS)</label><input id="produksi-qty" type="number" inputmode="numeric" oninput="onProduksiQtyChange()" class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-2.5 text-xs text-black focus:outline-none focus:border-[#FFB144]" placeholder="0"></div>
             </div>
 
             <div class="bg-cardBg rounded-xl border-2 border-borderDark overflow-hidden">
@@ -1493,8 +1526,8 @@
 
             <div class="bg-cardBg rounded-xl p-4 border-2 border-borderDark flex flex-col gap-3">
                 <div class="flex items-center gap-2 border-b-2 border-borderDark pb-2"><i class="fa-solid fa-users brand-text"></i><h3 class="text-sm font-bold text-black tracking-wide">BIAYA TENAGA KERJA</h3></div>
-                <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold text-black tracking-wider">TOTAL BIAYA TENAGA KERJA (Rp)</label><input id="produksi-biaya-tenaga-kerja" type="number" inputmode="numeric" oninput="renderProduksiBahanPreview()" class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-2.5 text-xs text-black focus:outline-none focus:border-[#FFB144]" placeholder="0 (opsional, isi manual)"></div>
-                <p class="text-[9px] text-black leading-relaxed">Isi manual berdasarkan data Payroll Anda. Kolom ini tidak menarik data otomatis dari sistem Payroll — sambungan otomatis perlu skema tabel Payroll yang jelas dulu.</p>
+                <div class="flex flex-col gap-1.5"><label class="text-[10px] font-bold text-black tracking-wider">TOTAL BIAYA TENAGA KERJA (Rp)</label><input id="produksi-biaya-tenaga-kerja" type="number" inputmode="numeric" oninput="onProduksiBiayaTkManualEdit()" class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-2.5 text-xs text-black focus:outline-none focus:border-[#FFB144]" placeholder="0 (opsional, isi manual)"></div>
+                <p id="produksi-tk-info" class="text-[9px] text-black leading-relaxed">Pilih brand & model dulu — ongkos jahit akan otomatis ditarik dari data Payroll (jika sudah diisi di sana). Nilainya tetap bisa diubah manual kalau perlu.</p>
             </div>
 
             <div class="bg-cardBg rounded-xl p-4 border-2 border-borderDark flex flex-col gap-3">
@@ -1509,7 +1542,8 @@
 
             <div class="bg-cardBg rounded-xl p-4 border-2 border-borderDark flex flex-col gap-2">
                 <div class="flex items-center justify-between text-xs font-bold text-black"><span>Biaya Bahan</span><span id="produksi-hasil-biaya-bahan">Rp 0</span></div>
-                <div class="flex items-center justify-between text-xs font-bold text-black"><span>Biaya Tenaga Kerja</span><span id="produksi-hasil-biaya-tk">Rp 0</span></div>
+                <div class="flex items-center justify-between text-xs font-bold text-black"><span>Biaya Lain (Resep: Jahit/Obras/dll)</span><span id="produksi-hasil-biaya-resep-lain">Rp 0</span></div>
+                <div class="flex items-center justify-between text-xs font-bold text-black"><span>Biaya Tenaga Kerja (manual/payroll)</span><span id="produksi-hasil-biaya-tk">Rp 0</span></div>
                 <div class="flex items-center justify-between text-sm font-black text-black border-t-2 border-borderDark pt-2 mt-1"><span>TOTAL HPP</span><span id="produksi-hasil-total-hpp">Rp 0</span></div>
                 <div class="flex items-center justify-between text-sm font-black brand-text"><span>HPP / PCS</span><span id="produksi-hasil-hpp-pcs">Rp 0</span></div>
             </div>
@@ -1633,6 +1667,21 @@
                 </div>
             </div>
 
+            <!-- KONEKSI PAYROLL: BIAYA JAHIT -->
+            <div class="bg-cardBg rounded-xl border-2 border-borderDark flex flex-col overflow-hidden">
+                <div class="flex items-center justify-between px-4 py-3 cursor-pointer select-none" onclick="toggleCollapse('payroll-jahit-collapse','payroll-jahit-chevron')">
+                    <div class="flex items-center gap-2"><i class="fa-solid fa-link brand-text"></i><h3 class="text-sm font-bold text-black tracking-wide">KONEKSI PAYROLL — BIAYA JAHIT</h3></div>
+                    <i id="payroll-jahit-chevron" class="fa-solid fa-chevron-down brand-text text-xs collapse-chevron"></i>
+                </div>
+                <div id="payroll-jahit-collapse" class="collapse-body collapsed flex flex-col gap-4 px-4 pb-4">
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-[10px] font-bold text-black tracking-wider">NAMA BAGIAN DI PAYROLL &gt; HARGA</label>
+                    <input type="text" id="input-payroll-bagian-jahit" oninput="this.value=this.value.toUpperCase()" placeholder="contoh: JAHIT" autocomplete="off" autocorrect="off" spellcheck="false" class="w-full bg-darkBg border-2 border-borderDark rounded-lg px-3 py-3 text-xs text-black font-medium focus:outline-none focus:border-[#FFB144] transition-colors uppercase">
+                </div>
+                <p class="text-[9px] text-black leading-relaxed">Isi persis sama dengan nama BAGIAN yang dipakai di aplikasi Payroll &gt; Harga (misal "JAHIT"). Biaya Jahit di Resep (BOM) dan Produksi akan otomatis ditarik dari Payroll &gt; Harga dengan mencocokkan BRAND + BAGIAN ini + nama Pekerjaan = nama Model.</p>
+                </div>
+            </div>
+
             <button onclick="simpanPengaturan()" class="mt-2 w-full brand-gradient-bg text-black font-bold text-lg py-3.5 rounded-xl shadow-[0_4px_15px_rgba(255,140,0,0.3)] flex justify-center items-center gap-3 submit-btn-shadow">
                 <i class="fa-solid fa-check-double text-xl"></i> SIMPAN PENGATURAN
             </button>
@@ -1750,6 +1799,81 @@
                 </div>
             </div>
 
+            <!-- DANGER ZONE: HAPUS DATA (Owner Only) -->
+            <div class="mt-2 bg-cardBg rounded-xl border-2 border-red-500/30 flex flex-col overflow-hidden">
+                <div class="flex items-center justify-between px-4 py-3 cursor-pointer select-none" onclick="toggleCollapse('danger-collapse','danger-chevron')">
+                    <div class="flex items-center gap-2">
+                        <div class="w-7 h-7 rounded-lg bg-red-500/15 border-2 border-red-500/30 flex items-center justify-center flex-shrink-0">
+                            <i class="fa-solid fa-triangle-exclamation text-red-400 text-[11px]"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-black text-red-400 tracking-wide">DANGER ZONE</h3>
+                            <p class="text-[9px] text-black mt-0.5">Aksi ini tidak bisa dibatalkan</p>
+                        </div>
+                    </div>
+                    <i id="danger-chevron" class="fa-solid fa-chevron-down text-red-400 text-xs collapse-chevron"></i>
+                </div>
+                <div id="danger-collapse" class="collapse-body collapsed flex flex-col gap-3 px-4 py-4 border-t-2 border-red-500/20">
+
+                    <!-- Hapus Transaksi -->
+                    <div class="bg-darkBg rounded-xl p-3 border-2 border-red-500/20">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="flex-1 min-w-0">
+                                <div class="text-[11px] font-black text-black flex items-center gap-1.5">
+                                    <i class="fa-solid fa-handshake text-red-400 text-[10px]"></i>
+                                    Hapus Semua Transaksi
+                                </div>
+                                <p class="text-[9px] text-black mt-1 leading-relaxed">Menghapus semua data transaksi, item transaksi, dan pelunasan. Stok akan kembali seperti sebelum ada penjualan.</p>
+                            </div>
+                            <button onclick="hapusSemuaTransaksi()" class="flex-shrink-0 px-3 py-2 bg-red-500/10 border-2 border-red-500/40 text-red-400 text-[10px] font-black rounded-lg hover:bg-red-500/20 transition-colors whitespace-nowrap">
+                                <i class="fa-solid fa-trash-can mr-1"></i> HAPUS
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Hapus Riwayat Input -->
+                    <div class="bg-darkBg rounded-xl p-3 border-2 border-red-500/20">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="flex-1 min-w-0">
+                                <div class="text-[11px] font-black text-black flex items-center gap-1.5">
+                                    <i class="fa-solid fa-boxes-stacked text-red-400 text-[10px]"></i>
+                                    Hapus Semua Riwayat Input Stok
+                                </div>
+                                <p class="text-[9px] text-black mt-1 leading-relaxed">Menghapus semua riwayat stok masuk & retur. Stok semua barang akan menjadi 0.</p>
+                            </div>
+                            <button onclick="hapusSemuaRiwayatInput()" class="flex-shrink-0 px-3 py-2 bg-red-500/10 border-2 border-red-500/40 text-red-400 text-[10px] font-black rounded-lg hover:bg-red-500/20 transition-colors whitespace-nowrap">
+                                <i class="fa-solid fa-trash-can mr-1"></i> HAPUS
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Hapus Master Data -->
+                    <div class="bg-darkBg rounded-xl p-3 border-2 border-red-500/20">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="flex-1 min-w-0">
+                                <div class="text-[11px] font-black text-black flex items-center gap-1.5">
+                                    <i class="fa-solid fa-database text-red-400 text-[10px]"></i>
+                                    Hapus Semua Master Data
+                                </div>
+                                <p class="text-[9px] text-black mt-1 leading-relaxed">Menghapus semua data vendor, brand, model, warna, dan ukuran. Lakukan setelah hapus transaksi & stok.</p>
+                            </div>
+                            <button onclick="hapusSemuaMasterData()" class="flex-shrink-0 px-3 py-2 bg-red-500/10 border-2 border-red-500/40 text-red-400 text-[10px] font-black rounded-lg hover:bg-red-500/20 transition-colors whitespace-nowrap">
+                                <i class="fa-solid fa-trash-can mr-1"></i> HAPUS
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Hapus SEMUA (reset total) -->
+                    <div class="mt-1 pt-3 border-t-2 border-red-500/20">
+                        <button onclick="hapusSemuaData()" class="w-full py-3.5 bg-red-600 hover:bg-red-700 text-black font-black text-sm rounded-xl flex items-center justify-center gap-2 transition-colors shadow-[0_4px_15px_rgba(220,38,38,0.3)]">
+                            <i class="fa-solid fa-bomb text-base"></i>
+                            RESET TOTAL — HAPUS SEMUA DATA
+                        </button>
+                        <p class="text-[9px] text-black text-center mt-2">Menghapus semua transaksi, stok, master data sekaligus. Database bersih total.</p>
+                    </div>
+
+                </div>
+            </div>
 
         <div style="height:90px;flex-shrink:0;"></div>
         </div>
@@ -1767,10 +1891,6 @@
             <div id="nav-btn-transaksi" onclick="switchTab('transaksi')" class="nav-btn inactive flex flex-col items-center gap-1 cursor-pointer flex-shrink-0 px-2.5">
                 <div class="icon-box text-[#000000]/60 w-10 h-8 rounded-lg flex items-center justify-center"><i class="fa-solid fa-handshake text-lg"></i></div>
                 <span class="nav-text text-[9px] text-[#000000]/60 font-normal whitespace-nowrap">Transaksi</span>
-            </div>
-            <div id="nav-btn-resep" onclick="switchTab('resep')" class="nav-btn inactive flex flex-col items-center gap-1 cursor-pointer flex-shrink-0 px-2.5">
-                <div class="icon-box text-[#000000]/60 w-10 h-8 rounded-lg flex items-center justify-center"><i class="fa-solid fa-flask text-lg"></i></div>
-                <span class="nav-text text-[9px] text-[#000000]/60 font-normal whitespace-nowrap">Resep</span>
             </div>
             <div id="nav-btn-produksi" onclick="switchTab('produksi')" class="nav-btn inactive flex flex-col items-center gap-1 cursor-pointer flex-shrink-0 px-2.5">
                 <div class="icon-box text-[#000000]/60 w-10 h-8 rounded-lg flex items-center justify-center"><i class="fa-solid fa-industry text-lg"></i></div>
@@ -1809,6 +1929,21 @@
     // ================================================================
 
     let sbClient = null;
+
+    // ================================================================
+    // KONEKSI KE APLIKASI PAYROLL (project Supabase terpisah)
+    // Dipakai untuk narik data "Ongkos Jahit per Model" secara otomatis
+    // saat menghitung Biaya Tenaga Kerja di tab Produksi.
+    // ================================================================
+    const PAYROLL_SUPABASE_URL = 'https://tnhfxiglwnkvchozwjzf.supabase.co';
+    const PAYROLL_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRuaGZ4aWdsd25rdmNob3p3anpmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ0NTY3NTIsImV4cCI6MjEwMDAzMjc1Mn0.Tmrrfs1WHcb7xFMUs6O9ScWuMfS8XPDnTxfKh4TH_L0';
+    let sbPayroll = null;
+    let payrollBagianJahit = ''; // nama BAGIAN di halaman Harga Payroll yang dipakai sebagai Biaya Jahit (diatur di Pengaturan)
+    try {
+        sbPayroll = window.supabase.createClient(PAYROLL_SUPABASE_URL, PAYROLL_SUPABASE_KEY);
+    } catch (e) {
+        console.warn('Gagal init koneksi Payroll:', e);
+    }
 
     // ==================== FETCH TANPA LIMIT (ANTI TERPOTONG) ====================
     // Supabase/PostgREST membatasi hasil query max 1000 baris per request secara default.
@@ -1938,6 +2073,8 @@
     let _pinSetupMode = 'setup'; // 'setup' | 'ganti_login' | 'ganti_master'
     let _masterUnlocked = false;
     let _pendingTabAfterPin = null;
+    // ⚠️ SEMENTARA DINONAKTIFKAN atas permintaan — set true lagi untuk mengaktifkan PIN Data Master.
+    const _PIN_MASTER_AKTIF = false;
 
     // Ambil PIN dari Supabase (tabel pengaturan)
     async function getPIN(type) {
@@ -2427,6 +2564,37 @@ CREATE TABLE IF NOT EXISTS bahan_baku (
     satuan text default 'pcs',
     stok numeric default 0,
     harga_satuan integer default 0,
+    brand_id bigint references brand(id) on delete set null,
+    brand_nama text,
+    model_id bigint references model(id) on delete set null,
+    model_nama text,
+    warna_id bigint references warna(id) on delete set null,
+    warna_nama text,
+    created_at timestamptz default now()
+);
+-- Untuk database yang sudah ada (upgrade dari versi lama tanpa BRAND/MODEL di bahan baku):
+-- Ini membuat bahan baku bisa dikhususkan untuk 1 model tertentu (stok tidak dibagi ke model lain).
+ALTER TABLE bahan_baku ADD COLUMN IF NOT EXISTS brand_id bigint references brand(id) on delete set null;
+ALTER TABLE bahan_baku ADD COLUMN IF NOT EXISTS brand_nama text;
+ALTER TABLE bahan_baku ADD COLUMN IF NOT EXISTS model_id bigint references model(id) on delete set null;
+ALTER TABLE bahan_baku ADD COLUMN IF NOT EXISTS model_nama text;
+-- Untuk database yang sudah ada (upgrade dari versi lama tanpa WARNA di bahan baku):
+-- Ini membuat 1 bahan (mis. kain) bisa punya beberapa varian warna, masing-masing dengan stok terpisah.
+ALTER TABLE bahan_baku ADD COLUMN IF NOT EXISTS warna_id bigint references warna(id) on delete set null;
+ALTER TABLE bahan_baku ADD COLUMN IF NOT EXISTS warna_nama text;
+
+-- Batch per harga beli (FIFO): tiap kali RESTOK bahan baku dengan harga beli baru,
+-- dibuat 1 baris batch baru di sini. Saat produksi memakai bahan, stok diambil dari
+-- batch TERLAMA dulu (FIFO) supaya biaya bahan di HPP akurat sesuai harga beli aslinya.
+CREATE TABLE IF NOT EXISTS bahan_baku_batch (
+    id bigint generated by default as identity primary key,
+    bahan_baku_id bigint references bahan_baku(id) on delete cascade,
+    harga_beli integer default 0,
+    qty_awal numeric default 0,
+    qty_sisa numeric default 0,
+    keterangan text,
+    tanggal text,
+    jam text,
     created_at timestamptz default now()
 );
 
@@ -2434,11 +2602,17 @@ CREATE TABLE IF NOT EXISTS resep_item (
     id bigint generated by default as identity primary key,
     brand text,
     model text,
+    jenis text default 'bahan',
     bahan_baku_id bigint references bahan_baku(id) on delete cascade,
     bahan_nama text,
     qty_per_pcs numeric default 0,
+    biaya_per_pcs numeric default 0,
     created_at timestamptz default now()
 );
+-- Untuk database yang sudah ada (upgrade dari versi lama tanpa biaya lain di resep):
+ALTER TABLE resep_item ADD COLUMN IF NOT EXISTS jenis text default 'bahan';
+ALTER TABLE resep_item ADD COLUMN IF NOT EXISTS biaya_per_pcs numeric default 0;
+ALTER TABLE resep_item ALTER COLUMN bahan_baku_id DROP NOT NULL;
 
 CREATE TABLE IF NOT EXISTS riwayat_produksi (
     id bigint generated by default as identity primary key,
@@ -2475,6 +2649,7 @@ ALTER TABLE bayar_sebagian DISABLE ROW LEVEL SECURITY;
 ALTER TABLE bahan_baku DISABLE ROW LEVEL SECURITY;
 ALTER TABLE resep_item DISABLE ROW LEVEL SECURITY;
 ALTER TABLE riwayat_produksi DISABLE ROW LEVEL SECURITY;
+ALTER TABLE bahan_baku_batch DISABLE ROW LEVEL SECURITY;
 
 -- ============================================
 -- AKTIFKAN REALTIME (wajib, agar sinkron otomatis antar device)
@@ -2495,6 +2670,32 @@ BEGIN
     BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE bahan_baku; EXCEPTION WHEN duplicate_object THEN NULL; END;
     BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE resep_item; EXCEPTION WHEN duplicate_object THEN NULL; END;
     BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE riwayat_produksi; EXCEPTION WHEN duplicate_object THEN NULL; END;
+    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE bahan_baku_batch; EXCEPTION WHEN duplicate_object THEN NULL; END;
+END $$;
+
+-- ============================================
+-- SINKRONKAN SEQUENCE ID (cegah error "duplicate key value violates unique constraint")
+-- Aman dijalankan berkali-kali. Wajib dijalankan ulang setiap habis import CSV,
+-- restore backup, atau insert manual yang menyebutkan kolom id secara eksplisit.
+-- ============================================
+DO $$
+DECLARE
+    tbl text;
+BEGIN
+    FOREACH tbl IN ARRAY ARRAY[
+        'pengaturan', 'vendor', 'brand', 'model', 'warna', 'ukuran',
+        'riwayat_input', 'riwayat_input_item', 'transaksi', 'transaksi_item',
+        'pelunasan', 'bayar_sebagian', 'bahan_baku', 'bahan_baku_batch',
+        'resep_item', 'riwayat_produksi'
+    ]
+    LOOP
+        IF pg_get_serial_sequence(tbl, 'id') IS NOT NULL THEN
+            EXECUTE format(
+                'SELECT setval(pg_get_serial_sequence(%L, ''id''), COALESCE((SELECT MAX(id) FROM %I), 1))',
+                tbl, tbl
+            );
+        END IF;
+    END LOOP;
 END $$;`;
 
     function tampilkanModalSQL(fromConfig) {
@@ -2556,7 +2757,14 @@ END $$;`;
     }
 
     // ==================== STATE IN-MEMORY ====================
-    const masterData = { vendor: [], brand: [], model: [], warna: [], ukuran: [], bahanBaku: [], resep: [] };
+    const masterData = { vendor: [], brand: [], model: [], warna: [], ukuran: [], bahanBaku: [], bahanBakuBatch: [], resep: [], satuanCustom: [], namaBahanCustom: [] };
+    // Migrasi format lama (array of string) -> array of object {id, nama, brandId, brandNama} supaya bisa difilter per BRAND
+    function _normalizeNamaBahanArr(arr) {
+        return (arr || []).map((item, idx) => {
+            if (typeof item === 'string') return { id: 'nb_legacy_' + idx + '_' + item, nama: item, brandId: '', brandNama: '' };
+            return { id: item.id || ('nb_' + idx + '_' + Date.now()), nama: item.nama || '', brandId: item.brandId || '', brandNama: item.brandNama || '' };
+        });
+    }
     const appData    = { riwayatInput: [], riwayatTransaksi: [], pelunasan: [], riwayatProduksi: [] };
     // Expose ke window agar RadjaBot Live & devtools bisa membaca state
     window.masterData = masterData;
@@ -2595,6 +2803,14 @@ END $$;`;
                 document.querySelectorAll('.display-brand-name').forEach(el => el.textContent = pNama.value.toUpperCase());
             }
             if (pMain && pSec) changeTheme(pMain.value, pSec.value, false);
+            const pSatuan = pengArr.find(p => p.key === 'satuan_custom');
+            try { masterData.satuanCustom = pSatuan ? (JSON.parse(pSatuan.value) || []) : []; } catch(e) { masterData.satuanCustom = []; }
+            const pNamaBahan = pengArr.find(p => p.key === 'nama_bahan_custom');
+            try { masterData.namaBahanCustom = _normalizeNamaBahanArr(pNamaBahan ? (JSON.parse(pNamaBahan.value) || []) : []); } catch(e) { masterData.namaBahanCustom = []; }
+            const pBagianJahit = pengArr.find(p => p.key === 'payroll_bagian_jahit');
+            payrollBagianJahit = pBagianJahit ? (pBagianJahit.value || '').trim().toUpperCase() : '';
+            const elBagianJahit = document.getElementById('input-payroll-bagian-jahit');
+            if (elBagianJahit) elBagianJahit.value = payrollBagianJahit;
 
             setLoadingText('MEMUAT RIWAYAT TRANSAKSI...');
             const [riDataRaw, riItemsData, trxDataRaw, trxItemsData] = await withTimeout(Promise.all([
@@ -2662,10 +2878,10 @@ END $$;`;
         // Load modul HPP (Bahan Baku, Resep, Riwayat Produksi) - terpisah, karena tabel ini baru
         try {
             setLoadingText('MEMUAT DATA HPP...');
-            await Promise.all([fetchBahanBakuData(), fetchResepData(), fetchRiwayatProduksiData()]);
+            await Promise.all([fetchBahanBakuData(), fetchBahanBakuBatchData(), fetchResepData(), fetchRiwayatProduksiData()]);
         } catch(e) {
             console.warn('Tabel modul HPP belum ada, jalankan SQL setup terbaru untuk mengaktifkan RESEP & PRODUKSI.');
-            masterData.bahanBaku = []; masterData.resep = []; appData.riwayatProduksi = [];
+            masterData.bahanBaku = []; masterData.bahanBakuBatch = []; masterData.resep = []; appData.riwayatProduksi = [];
         }
     }
 
@@ -2704,6 +2920,18 @@ END $$;`;
             document.querySelectorAll('.display-brand-name').forEach(el => el.textContent = pNama.value.toUpperCase());
         }
         if (pMain && pSec) changeTheme(pMain.value, pSec.value, false);
+        const pSatuan = pengArr.find(p => p.key === 'satuan_custom');
+        try { masterData.satuanCustom = pSatuan ? (JSON.parse(pSatuan.value) || []) : []; } catch(e) { masterData.satuanCustom = []; }
+        const pNamaBahan = pengArr.find(p => p.key === 'nama_bahan_custom');
+        try { masterData.namaBahanCustom = _normalizeNamaBahanArr(pNamaBahan ? (JSON.parse(pNamaBahan.value) || []) : []); } catch(e) { masterData.namaBahanCustom = []; }
+        const pBagianJahit = pengArr.find(p => p.key === 'payroll_bagian_jahit');
+        payrollBagianJahit = pBagianJahit ? (pBagianJahit.value || '').trim().toUpperCase() : '';
+        const elBagianJahit = document.getElementById('input-payroll-bagian-jahit');
+        if (elBagianJahit) elBagianJahit.value = payrollBagianJahit;
+        if (typeof renderSatuanList === 'function') renderSatuanList();
+        if (typeof updateSatuanBahanDatalist === 'function') updateSatuanBahanDatalist();
+        if (typeof renderNamaBahanList === 'function') renderNamaBahanList();
+        if (typeof updateBahanNamaDatalist === 'function') updateBahanNamaDatalist();
     }
     async function fetchRiwayatInputData() {
         const [riData, riItemsData] = await Promise.all([
@@ -2767,12 +2995,23 @@ async function fetchBayarSebagianData() {
 async function fetchBahanBakuData() {
     const { data, error } = await sbClient.from('bahan_baku').select('*').order('id');
     if (error) throw error;
-    masterData.bahanBaku = (data || []).map(x => ({ id: x.id, nama: x.nama, satuan: x.satuan || 'pcs', stok: Number(x.stok) || 0, hargaSatuan: x.harga_satuan || 0 }));
+    masterData.bahanBaku = (data || []).map(x => ({ id: x.id, nama: x.nama, satuan: x.satuan || 'pcs', stok: Number(x.stok) || 0, hargaSatuan: x.harga_satuan || 0, brandId: x.brand_id || null, brandNama: x.brand_nama || '', modelId: x.model_id || null, modelNama: x.model_nama || '', warnaId: x.warna_id || null, warnaNama: x.warna_nama || '' }));
+}
+async function fetchBahanBakuBatchData() {
+    try {
+        const { data, error } = await sbClient.from('bahan_baku_batch').select('*').order('id');
+        if (error) throw error;
+        masterData.bahanBakuBatch = (data || []).map(x => ({ id: x.id, bahanBakuId: x.bahan_baku_id, hargaBeli: x.harga_beli || 0, qtyAwal: Number(x.qty_awal) || 0, qtySisa: Number(x.qty_sisa) || 0, keterangan: x.keterangan || '', tanggal: x.tanggal, jam: x.jam, createdAt: x.created_at }));
+    } catch(e) {
+        // Tabel batch belum ada (SQL lama) — restock per-batch belum aktif, tapi bahan baku existing tetap jalan seperti biasa.
+        console.warn('Tabel bahan_baku_batch belum ada, jalankan SQL setup terbaru untuk mengaktifkan RESTOK per-harga (FIFO).');
+        masterData.bahanBakuBatch = [];
+    }
 }
 async function fetchResepData() {
     const { data, error } = await sbClient.from('resep_item').select('*').order('id');
     if (error) throw error;
-    masterData.resep = (data || []).map(x => ({ id: x.id, brand: x.brand, model: x.model, bahanBakuId: x.bahan_baku_id, bahanNama: x.bahan_nama, qtyPerPcs: Number(x.qty_per_pcs) || 0 }));
+    masterData.resep = (data || []).map(x => ({ id: x.id, brand: x.brand, model: x.model, jenis: x.jenis || 'bahan', bahanBakuId: x.bahan_baku_id, bahanNama: x.bahan_nama, qtyPerPcs: Number(x.qty_per_pcs) || 0, biayaPerPcs: Number(x.biaya_per_pcs) || 0 }));
 }
 async function fetchRiwayatProduksiData() {
     const data = await fetchAllRows('riwayat_produksi', '*', 'id', true);
@@ -2789,7 +3028,7 @@ async function fetchRiwayatProduksiData() {
     // dari HP/device lain, tampilan di sini ikut ter-update otomatis tanpa perlu refresh manual.
     let _realtimeChannel = null;
     let _realtimeDebounceTimer = null;
-    const REALTIME_TABLES = ['vendor', 'brand', 'model', 'warna', 'ukuran', 'pengaturan', 'riwayat_input', 'riwayat_input_item', 'transaksi', 'transaksi_item', 'pelunasan', 'bahan_baku', 'resep_item', 'riwayat_produksi'];
+    const REALTIME_TABLES = ['vendor', 'brand', 'model', 'warna', 'ukuran', 'pengaturan', 'riwayat_input', 'riwayat_input_item', 'transaksi', 'transaksi_item', 'pelunasan', 'bahan_baku', 'bahan_baku_batch', 'resep_item', 'riwayat_produksi'];
 
     // Peta nama tabel Supabase -> "grup" data. Tabel yang datanya digabung jadi 1 entity
     // (misal transaksi + transaksi_item, riwayat_input + riwayat_input_item) masuk grup yang sama,
@@ -2800,7 +3039,7 @@ async function fetchRiwayatProduksiData() {
         riwayat_input: 'riwayatInput', riwayat_input_item: 'riwayatInput',
         transaksi: 'transaksi', transaksi_item: 'transaksi',
     pelunasan: 'pelunasan', bayar_sebagian: 'bayarSebagian',
-    bahan_baku: 'bahanBaku', resep_item: 'resep', riwayat_produksi: 'riwayatProduksi',
+    bahan_baku: 'bahanBaku', resep_item: 'resep', riwayat_produksi: 'riwayatProduksi', bahan_baku_batch: 'bahanBakuBatch',
     };
 
     // Tiap grup: fungsi fetch (tarik ulang data grup ini SAJA) + fungsi render
@@ -2817,6 +3056,7 @@ async function fetchRiwayatProduksiData() {
         pelunasan:    { fetch: fetchPelunasanData,    render: () => { if (typeof _renderPelunasanViewOri === 'function') _renderPelunasanViewOri(); } },
     bayarSebagian:{ fetch: fetchBayarSebagianData,render: () => { if (typeof _renderBayarSebagianViewOri === 'function') _renderBayarSebagianViewOri(); } },
     bahanBaku:    { fetch: fetchBahanBakuData,    render: () => { if (typeof renderBahanBakuList === 'function') renderBahanBakuList(); if (typeof renderProduksiBahanPreview === 'function') renderProduksiBahanPreview(); } },
+    bahanBakuBatch: { fetch: fetchBahanBakuBatchData, render: () => { if (typeof renderBahanBakuList === 'function') renderBahanBakuList(); if (typeof renderProduksiBahanPreview === 'function') renderProduksiBahanPreview(); } },
     resep:        { fetch: fetchResepData,        render: () => { if (typeof renderResepList === 'function') renderResepList(); if (typeof renderProduksiBahanPreview === 'function') renderProduksiBahanPreview(); } },
     riwayatProduksi: { fetch: fetchRiwayatProduksiData, render: () => { if (typeof renderRiwayatProduksiList === 'function') renderRiwayatProduksiList(); } },
     };
@@ -2884,6 +3124,11 @@ async function fetchRiwayatProduksiData() {
         tambahModelRow();
         tambahWarnaRow();
         tambahUkuranRow();
+        tambahSatuanRow();
+        renderSatuanList();
+        updateSatuanBahanDatalist();
+        renderNamaBahanList();
+        updateBahanNamaDatalist();
         tambahVariasiInput();
         tambahVariasiTrx();
         updateInputVariasiState();
@@ -3325,8 +3570,8 @@ function updateSSK(tab, rowId) {
             showToast('⏳ Sedang menyimpan transaksi, harap tunggu...');
             return;
         }
-        // Jika user mau buka tab master atau resep (BOM/master data), minta PIN dulu (kecuali sudah unlock)
-        if ((tabName === 'master' || tabName === 'resep') && !_masterUnlocked) {
+        // Jika user mau buka tab master (termasuk sub-tab Resep/BOM), minta PIN dulu (kecuali sudah unlock)
+        if (_PIN_MASTER_AKTIF && tabName === 'master' && !_masterUnlocked) {
             _pinMasterVal = '';
             updatePinMasterDots();
             document.getElementById('pin-master-error').textContent = '';
@@ -3334,15 +3579,24 @@ function updateSSK(tab, rowId) {
             _pendingTabAfterPin = tabName;
             return;
         }
-        // Reset unlock saat pindah dari master/resep ke tab lain (bukan sesama tab master/resep)
-        if ((_activeTab === 'master' || _activeTab === 'resep') && tabName !== 'master' && tabName !== 'resep') {
+        // Reset unlock saat pindah dari master ke tab lain
+        if (_activeTab === 'master' && tabName !== 'master') {
             _masterUnlocked = false;
         }
         _doSwitchTab(tabName);
     }
 
+    // Mengatur kunci-scroll body + tab-input berdasarkan tab aktif DAN mode input yang sedang aktif.
+    // Dipanggil saat pindah tab (_doSwitchTab) maupun saat ganti mode di tab INPUT DATA (setInputMode).
+    function _updateScrollLockForCurrentTab(tabName) {
+        const tabInputEl = document.getElementById('tab-input');
+        const shouldLock = (tabName === 'transaksi') || (tabName === 'input' && inputState.mode === 'masuk');
+        document.body.classList.toggle('lock-page-scroll', shouldLock);
+        if (tabInputEl) tabInputEl.classList.toggle('input-scroll-locked', tabName === 'input' && inputState.mode === 'masuk');
+    }
+
     function _doSwitchTab(tabName) {
-        const tabs = ['stok','input','transaksi','resep','produksi','riwayat','master','setting'];
+        const tabs = ['stok','input','transaksi','produksi','riwayat','master','setting'];
 
         // Auto-clear form saat meninggalkan tab input atau transaksi
         if (_activeTab === 'input' && tabName !== 'input') {
@@ -3388,13 +3642,12 @@ function updateSSK(tab, rowId) {
         if (barInput) barInput.style.display = tabName === 'input' ? 'flex' : 'none';
         if (barTrx) barTrx.style.display = tabName === 'transaksi' ? 'flex' : 'none';
 
-        // Kunci scroll halaman khusus tab INPUT DATA & TRANSAKSI,
-        // supaya scroll hanya terjadi di dalam kolom VARIASI ITEM
-        if (tabName === 'input' || tabName === 'transaksi') {
-            document.body.classList.add('lock-page-scroll');
-        } else {
-            document.body.classList.remove('lock-page-scroll');
-        }
+        // Kunci scroll halaman khusus tab INPUT DATA (mode STOK MASUK/RETUR) & TRANSAKSI,
+        // supaya scroll hanya terjadi di dalam kolom VARIASI ITEM.
+        // Mode BAHAN BAKU di tab INPUT DATA sengaja TIDAK dikunci — panel itu discroll
+        // lewat halaman biasa (sama seperti tab Master/Riwayat/dll), karena isinya bisa
+        // lebih panjang dari 1 layar dan tidak punya kolom variasi yang perlu dikunci.
+        _updateScrollLockForCurrentTab(tabName);
 
         // Defer render berat ke setelah tab tampil di layar
         requestAnimationFrame(() => {
@@ -3414,11 +3667,6 @@ function updateSSK(tab, rowId) {
                 else _renderRiwayatInputOri();
             }
             if (tabName === 'master') renderBrandOptions();
-            if (tabName === 'resep') {
-                populateResepProduksiBrandOptions();
-                renderBahanBakuList();
-                renderResepBomList();
-            }
             if (tabName === 'produksi') {
                 populateResepProduksiBrandOptions();
                 renderAlokasiProduksiList();
@@ -4255,6 +4503,8 @@ function updateSSK(tab, rowId) {
         const main = getComputedStyle(document.documentElement).getPropertyValue('--brand-main').trim();
         const sec  = main === '#ff8c00' ? '#ffb347' : main; // fallback
         updateBrandName();
+        const bagianJahit = (document.getElementById('input-payroll-bagian-jahit')?.value || '').trim().toUpperCase();
+        payrollBagianJahit = bagianJahit;
         // Simpan font ke localStorage
         const fontFamily = document.body.style.fontFamily || '';
         if (fontFamily && activeFont !== 'Default') {
@@ -4268,7 +4518,8 @@ function updateSSK(tab, rowId) {
             await sbClient.from('pengaturan').upsert([
                 { key: 'brand_name', value: nama },
                 { key: 'theme_main', value: main },
-                { key: 'theme_secondary', value: sec }
+                { key: 'theme_secondary', value: sec },
+                { key: 'payroll_bagian_jahit', value: bagianJahit }
             ], { onConflict: 'key' });
             showToast('✅ Pengaturan disimpan!');
         } catch(e) { showToast('❌ Gagal simpan pengaturan'); }
@@ -4616,6 +4867,7 @@ function updateSSK(tab, rowId) {
     function renderWarnaList() {
         const list = document.getElementById('warna-list');
         document.getElementById('warna-count').textContent = masterData.warna.length + ' data';
+        populateInputBahanWarnaOptions();
         if (masterData.warna.length === 0) {
             list.innerHTML = '<div class="text-center text-black text-[11px] py-8 flex flex-col items-center gap-2"><i class="fa-solid fa-inbox text-2xl opacity-40"></i>Belum ada warna.</div>';
             return;
@@ -4743,8 +4995,223 @@ function updateSSK(tab, rowId) {
             </div>`).join('');
     }
 
+    // ==================== MASTER DATA: SATUAN (CUSTOM, disimpan di tabel pengaturan) ====================
+    let satuanRowCount = 0;
+    function tambahSatuanRow() {
+        satuanRowCount++;
+        const id = satuanRowCount;
+        const container = document.getElementById('satuan-rows-container');
+        const row = document.createElement('div');
+        row.id = 'satuan-row-' + id;
+        row.className = 'grid grid-cols-12 items-center gap-1 px-2 py-1.5 bg-darkBg';
+        row.innerHTML = `
+            <div class="col-span-11 relative">
+                <div class="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none"><i class="fa-solid fa-scale-balanced text-black text-[10px]"></i></div>
+                <input type="text" class="satuan-nama w-full bg-[#F6DBB6] border-2 border-borderDark rounded-lg pl-7 pr-2 py-2 text-xs text-black placeholder-black focus:outline-none focus:border-[#FFB144] transition-colors" placeholder="nama satuan...">
+            </div>
+            <div class="col-span-1 flex justify-center">
+                <button onclick="hapusSatuanRow(${id})" class="w-7 h-7 rounded-lg bg-red-500/10 border-2 border-red-500/30 text-red-400 flex items-center justify-center hover:bg-red-500/20 transition-colors"><i class="fa-solid fa-xmark text-[10px]"></i></button>
+            </div>`;
+        container.appendChild(row);
+    }
+    function hapusSatuanRow(id) {
+        const row = document.getElementById('satuan-row-' + id);
+        if (row) {
+            const container = document.getElementById('satuan-rows-container');
+            if (container.children.length > 1) row.remove();
+        }
+    }
+    async function _saveSatuanCustomToDB() {
+        await sbClient.from('pengaturan').upsert({ key: 'satuan_custom', value: JSON.stringify(masterData.satuanCustom) }, { onConflict: 'key' });
+    }
+    async function simpanSatuanCustom() {
+        const rows = document.querySelectorAll('#satuan-rows-container > div');
+        const toInsert = [];
+        const duplikatList = [];
+        rows.forEach(row => {
+            const nama = row.querySelector('.satuan-nama').value.trim();
+            if (nama) {
+                const isDuplikat = masterData.satuanCustom.some(s => s.toLowerCase() === nama.toLowerCase());
+                const isInBatch = toInsert.some(x => x.toLowerCase() === nama.toLowerCase());
+                if (isDuplikat || isInBatch) {
+                    duplikatList.push(nama);
+                } else {
+                    toInsert.push(nama);
+                }
+            }
+        });
+        if (duplikatList.length > 0) {
+            showToast('⚠️ Satuan sudah ada: ' + duplikatList.join(', '));
+            if (toInsert.length === 0) return;
+        }
+        if (toInsert.length === 0) { showAlert('Isi minimal satu nama satuan!', {type:'warning'}); return; }
+        masterData.satuanCustom.push(...toInsert);
+        try {
+            await _saveSatuanCustomToDB();
+        } catch(e) { showToast('❌ Gagal simpan satuan.'); masterData.satuanCustom = masterData.satuanCustom.filter(s => !toInsert.includes(s)); return; }
+        document.getElementById('satuan-rows-container').innerHTML = '';
+        satuanRowCount = 0;
+        tambahSatuanRow();
+        renderSatuanList();
+        updateSatuanBahanDatalist();
+        showToast(`✅ ${toInsert.length} satuan disimpan!`);
+    }
+    async function hapusSatuanCustom(nama) {
+        showConfirm('Hapus satuan "' + nama + '"?', async function() {
+            masterData.satuanCustom = masterData.satuanCustom.filter(s => s !== nama);
+            try {
+                await _saveSatuanCustomToDB();
+            } catch(e) { showToast('❌ Gagal hapus satuan.'); }
+            renderSatuanList();
+            updateSatuanBahanDatalist();
+        }, {title:'HAPUS SATUAN', type:'danger', icon:'🗑️', ok:'YA, HAPUS'});
+    }
+    function renderSatuanList() {
+        const list = document.getElementById('satuan-list');
+        if (!list) return;
+        const countEl = document.getElementById('satuan-count');
+        if (countEl) countEl.textContent = masterData.satuanCustom.length + ' data';
+        if (masterData.satuanCustom.length === 0) {
+            list.innerHTML = '<div class="text-center text-black text-[11px] py-8 flex flex-col items-center gap-2"><i class="fa-solid fa-inbox text-2xl opacity-40"></i>Belum ada satuan custom.</div>';
+            return;
+        }
+        list.innerHTML = masterData.satuanCustom.map(s => `
+            <div class="flex items-center justify-between px-4 py-2.5 hover:bg-darkBg transition-colors">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg brand-bg flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-scale-balanced text-black text-[10px]"></i></div>
+                    <div class="text-[11px] font-bold text-black">${s}</div>
+                </div>
+                <button onclick="hapusSatuanCustom('${s.replace(/'/g, "\\'")}')" class="w-7 h-7 rounded-lg bg-red-500/10 border-2 border-red-500/30 text-red-400 flex items-center justify-center hover:bg-red-500/20 transition-colors flex-shrink-0"><i class="fa-regular fa-trash-can text-[10px]"></i></button>
+            </div>`).join('');
+    }
+
+    // ==================== MASTER DATA: NAMA BAHAN (dropdown untuk Bahan Baku) ====================
+    let namaBahanRowCount = 0;
+    let bahanNamaFilterBrandId = ''; // filter aktif di DAFTAR NAMA BAHAN ('' = semua)
+    function _brandOptionsHtml(selectedId) {
+        return '<option value="">-- Umum (Semua Brand) --</option>' + masterData.brand.map(b => `<option value="${b.id}" ${String(b.id)===String(selectedId)?'selected':''}>${b.nama}</option>`).join('');
+    }
+    function tambahNamaBahanRow() {
+        namaBahanRowCount++;
+        const id = namaBahanRowCount;
+        const container = document.getElementById('bahan-nama-rows-container');
+        const row = document.createElement('div');
+        row.id = 'bahan-nama-row-' + id;
+        row.className = 'grid grid-cols-12 items-center gap-1 px-2 py-1.5 bg-darkBg';
+        row.innerHTML = `
+            <div class="col-span-6 relative">
+                <div class="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none"><i class="fa-solid fa-boxes-packing text-black text-[10px]"></i></div>
+                <input type="text" class="bahan-nama-nama w-full bg-[#F6DBB6] border-2 border-borderDark rounded-lg pl-7 pr-2 py-2 text-xs text-black placeholder-black focus:outline-none focus:border-[#FFB144] transition-colors" placeholder="cth: Kain Katun, Benang...">
+            </div>
+            <div class="col-span-5">
+                <select class="bahan-nama-brand w-full bg-[#F6DBB6] border-2 border-borderDark rounded-lg px-2 py-2 text-xs text-black appearance-none focus:outline-none focus:border-[#FFB144] transition-colors">${_brandOptionsHtml('')}</select>
+            </div>
+            <div class="col-span-1 flex justify-center">
+                <button onclick="hapusNamaBahanRow(${id})" class="w-7 h-7 rounded-lg bg-red-500/10 border-2 border-red-500/30 text-red-400 flex items-center justify-center hover:bg-red-500/20 transition-colors"><i class="fa-solid fa-xmark text-[10px]"></i></button>
+            </div>`;
+        container.appendChild(row);
+    }
+    function hapusNamaBahanRow(id) {
+        const row = document.getElementById('bahan-nama-row-' + id);
+        if (row) {
+            const container = document.getElementById('bahan-nama-rows-container');
+            if (container.children.length > 1) row.remove();
+        }
+    }
+    async function _saveNamaBahanCustomToDB() {
+        await sbClient.from('pengaturan').upsert({ key: 'nama_bahan_custom', value: JSON.stringify(masterData.namaBahanCustom) }, { onConflict: 'key' });
+    }
+    async function simpanNamaBahanCustom() {
+        const rows = document.querySelectorAll('#bahan-nama-rows-container > div');
+        const toInsert = [];
+        const duplikatList = [];
+        rows.forEach(row => {
+            const nama = row.querySelector('.bahan-nama-nama').value.trim();
+            const brandSel = row.querySelector('.bahan-nama-brand');
+            const brandId = brandSel ? brandSel.value : '';
+            const brandObj = brandId ? masterData.brand.find(b => String(b.id) === String(brandId)) : null;
+            const brandNama = brandObj ? brandObj.nama : '';
+            if (nama) {
+                const isDuplikat = masterData.namaBahanCustom.some(s => s.nama.toLowerCase() === nama.toLowerCase() && String(s.brandId || '') === String(brandId || ''));
+                const isInBatch = toInsert.some(x => x.nama.toLowerCase() === nama.toLowerCase() && String(x.brandId || '') === String(brandId || ''));
+                if (isDuplikat || isInBatch) {
+                    duplikatList.push(nama);
+                } else {
+                    toInsert.push({ id: 'nb_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), nama, brandId: brandId || '', brandNama });
+                }
+            }
+        });
+        if (duplikatList.length > 0) {
+            showToast('⚠️ Nama bahan sudah ada untuk brand ini: ' + duplikatList.join(', '));
+            if (toInsert.length === 0) return;
+        }
+        if (toInsert.length === 0) { showAlert('Isi minimal satu nama bahan!', {type:'warning'}); return; }
+        masterData.namaBahanCustom.push(...toInsert);
+        try {
+            await _saveNamaBahanCustomToDB();
+        } catch(e) { showToast('❌ Gagal simpan nama bahan.'); masterData.namaBahanCustom = masterData.namaBahanCustom.filter(s => !toInsert.includes(s)); return; }
+        document.getElementById('bahan-nama-rows-container').innerHTML = '';
+        namaBahanRowCount = 0;
+        tambahNamaBahanRow();
+        renderNamaBahanList();
+        updateBahanNamaDatalist();
+        showToast(`✅ ${toInsert.length} nama bahan disimpan!`);
+    }
+    async function hapusNamaBahanCustom(id) {
+        const item = masterData.namaBahanCustom.find(s => s.id === id);
+        if (!item) return;
+        showConfirm('Hapus nama bahan "' + item.nama + '"?', async function() {
+            masterData.namaBahanCustom = masterData.namaBahanCustom.filter(s => s.id !== id);
+            try {
+                await _saveNamaBahanCustomToDB();
+            } catch(e) { showToast('❌ Gagal hapus nama bahan.'); }
+            renderNamaBahanList();
+            updateBahanNamaDatalist();
+        }, {title:'HAPUS NAMA BAHAN', type:'danger', icon:'🗑️', ok:'YA, HAPUS'});
+    }
+    function filterNamaBahanByBrand(brandId) {
+        bahanNamaFilterBrandId = brandId || '';
+        renderNamaBahanList();
+    }
+    function renderNamaBahanFilterChips() {
+        const wrap = document.getElementById('bahan-nama-filter-chips');
+        if (!wrap) return;
+        const brandsInUse = masterData.brand.filter(b => masterData.namaBahanCustom.some(s => String(s.brandId || '') === String(b.id)));
+        const chipCls = (active) => `whitespace-nowrap px-3 py-1.5 rounded-full text-[10px] font-bold border-2 transition-all ${active ? 'brand-gradient-bg text-black border-transparent' : 'bg-cardBg text-black border-borderDark'}`;
+        let html = `<button onclick="filterNamaBahanByBrand('')" class="${chipCls(bahanNamaFilterBrandId==='')}">SEMUA</button>`;
+        html += `<button onclick="filterNamaBahanByBrand('umum')" class="${chipCls(bahanNamaFilterBrandId==='umum')}"><i class="fa-solid fa-globe mr-1"></i>UMUM</button>`;
+        html += brandsInUse.map(b => `<button onclick="filterNamaBahanByBrand('${b.id}')" class="${chipCls(String(bahanNamaFilterBrandId)===String(b.id))}">${b.nama}</button>`).join('');
+        wrap.innerHTML = html;
+    }
+    function renderNamaBahanList() {
+        const list = document.getElementById('bahan-nama-list');
+        if (!list) return;
+        renderNamaBahanFilterChips();
+        const countEl = document.getElementById('bahan-nama-count');
+        if (countEl) countEl.textContent = masterData.namaBahanCustom.length + ' data';
+        let tampil = masterData.namaBahanCustom;
+        if (bahanNamaFilterBrandId === 'umum') tampil = tampil.filter(s => !s.brandId);
+        else if (bahanNamaFilterBrandId) tampil = tampil.filter(s => String(s.brandId) === String(bahanNamaFilterBrandId));
+        if (tampil.length === 0) {
+            list.innerHTML = '<div class="text-center text-black text-[11px] py-8 flex flex-col items-center gap-2"><i class="fa-solid fa-inbox text-2xl opacity-40"></i>Belum ada nama bahan.</div>';
+            return;
+        }
+        list.innerHTML = tampil.map(s => `
+            <div class="flex items-center justify-between px-4 py-2.5 hover:bg-darkBg transition-colors">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg brand-bg flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-boxes-packing text-black text-[10px]"></i></div>
+                    <div>
+                        <div class="text-[11px] font-bold text-black">${s.nama}</div>
+                        <div class="text-[9px] font-bold ${s.brandId ? 'brand-text' : 'text-black opacity-50'}">${s.brandId ? ('🔒 ' + (s.brandNama || 'BRAND')) : '🌐 UMUM (semua brand)'}</div>
+                    </div>
+                </div>
+                <button onclick="hapusNamaBahanCustom('${s.id}')" class="w-7 h-7 rounded-lg bg-red-500/10 border-2 border-red-500/30 text-red-400 flex items-center justify-center hover:bg-red-500/20 transition-colors flex-shrink-0"><i class="fa-regular fa-trash-can text-[10px]"></i></button>
+            </div>`).join('');
+    }
+
+
     function switchMasterTab(tab) {
-        const panels = ['vendor','brand','model','warna','ukuran'];
+        const panels = ['vendor','brand','model','warna','ukuran','satuan','bahan','resep'];
         panels.forEach(p => {
             document.getElementById('master-panel-' + p).classList.add('hidden');
             document.getElementById('master-panel-' + p).classList.remove('flex');
@@ -4753,7 +5220,27 @@ function updateSSK(tab, rowId) {
         document.getElementById('master-panel-' + tab).classList.remove('hidden');
         document.getElementById('master-panel-' + tab).classList.add('flex');
         document.getElementById('master-tab-' + tab).className = "whitespace-nowrap flex-1 py-2 text-[10px] font-bold rounded-lg bg-cardBg brand-text shadow-sm transition-all";
+        if (tab === 'satuan' && masterData.satuanCustom.length === 0 && document.getElementById('satuan-rows-container').children.length === 0) tambahSatuanRow();
+        if (tab === 'bahan' && masterData.namaBahanCustom.length === 0 && document.getElementById('bahan-nama-rows-container').children.length === 0) tambahNamaBahanRow();
         if (tab === 'model') renderBrandOptions();
+        if (tab === 'resep') {
+            populateResepProduksiBrandOptions();
+            renderResepBomList();
+        }
+    }
+
+    const MASTER_GROUP_TABS = { produksi: ['vendor','brand','model','warna','ukuran'], hpp: ['satuan','bahan','resep'] };
+    function switchMasterGroup(group) {
+        const groups = ['produksi','hpp'];
+        groups.forEach(g => {
+            document.getElementById('master-subtabs-' + g).classList.add('hidden');
+            document.getElementById('master-subtabs-' + g).classList.remove('flex');
+            document.getElementById('master-group-' + g).className = "flex-1 py-2.5 text-[11px] font-black rounded-lg text-black hover:text-black transition-all flex items-center justify-center gap-1.5";
+        });
+        document.getElementById('master-subtabs-' + group).classList.remove('hidden');
+        document.getElementById('master-subtabs-' + group).classList.add('flex');
+        document.getElementById('master-group-' + group).className = "flex-1 py-2.5 text-[11px] font-black rounded-lg bg-cardBg brand-text shadow-sm transition-all flex items-center justify-center gap-1.5";
+        switchMasterTab(MASTER_GROUP_TABS[group][0]);
     }
 
     // ==== Mekanisme terpusat untuk menutup dropdown saat tap di luar area ====
@@ -5037,23 +5524,60 @@ function updateSSK(tab, rowId) {
     function setInputMode(mode) {
         inputState.mode = mode;
         const btnMasuk = document.getElementById('input-mode-masuk');
+        const btnBahan = document.getElementById('input-mode-bahan');
         const btnRetur = document.getElementById('input-mode-retur');
         const banner = document.getElementById('retur-info-banner');
         const keteranganWrapper = document.getElementById('retur-keterangan-wrapper');
         const headerTitle = document.getElementById('input-header-title');
         const btnText = document.getElementById('btn-simpan-input-text');
         const returSection = document.getElementById('riwayat-retur-section');
+        const bahanSection = document.getElementById('input-bahan-baku-section');
+        const masukReturFields = document.querySelectorAll('.input-masuk-retur-only');
+        const actionBar = document.getElementById('action-bar-input');
+
+        const activeCls = "flex-1 py-2.5 text-xs font-bold rounded-lg brand-gradient-bg text-black shadow-sm transition-all flex items-center justify-center gap-2";
+        const inactiveCls = "flex-1 py-2.5 text-xs font-bold rounded-lg text-black hover:text-black transition-all flex items-center justify-center gap-2";
+        const activeReturCls = "flex-1 py-2.5 text-xs font-bold rounded-lg bg-red-500/20 text-red-400 border-2 border-red-500/40 shadow-sm transition-all flex items-center justify-center gap-2";
+
+        if (btnMasuk) btnMasuk.className = mode === 'masuk' ? activeCls : inactiveCls;
+        if (btnBahan) btnBahan.className = mode === 'bahan' ? activeCls : inactiveCls;
+        if (btnRetur) btnRetur.className = mode === 'retur' ? activeReturCls : inactiveCls;
+
+        _updateScrollLockForCurrentTab('input');
+
+        if (mode === 'bahan') {
+            // Sembunyikan elemen khusus Stok Masuk/Retur, tampilkan panel Bahan Baku
+            banner.classList.add('hidden'); banner.classList.remove('flex');
+            keteranganWrapper.classList.add('hidden'); keteranganWrapper.classList.remove('flex');
+            if (returSection) { returSection.classList.add('hidden'); returSection.classList.remove('flex'); }
+            masukReturFields.forEach(el => { el.classList.add('hidden'); el.classList.remove('flex'); });
+            if (bahanSection) { bahanSection.classList.remove('hidden'); bahanSection.classList.add('flex'); }
+            if (actionBar) actionBar.style.display = 'none';
+            headerTitle.innerHTML = 'BAHAN <span class="text-black">BAKU</span>';
+            // Paksa toggle KHUSUS balik ke OFF & sinkronkan tampilannya setiap kali panel dibuka.
+            // Perlu karena browser (terutama Safari) suka "mengingat" checked state checkbox saat reload,
+            // padahal teks status & enable/disable BRAND-MODEL cuma ke-update lewat event change — jadi kalau
+            // browser restore checked=true tanpa event change, tampilannya jadi tidak sinkron (toggle kelihatan ON
+            // tapi teks & field masih OFF). Reset paksa di sini menjamin selalu mulai bersih.
+            const elKhususToggleSync = document.getElementById('input-bahan-khusus-toggle');
+            if (elKhususToggleSync) elKhususToggleSync.checked = false;
+            if (typeof toggleBahanKhususMode === 'function') toggleBahanKhususMode(false);
+            if (typeof populateInputBahanWarnaOptions === 'function') populateInputBahanWarnaOptions();
+            return;
+        }
+
+        // Mode 'masuk' atau 'retur': pastikan panel Bahan Baku tersembunyi & elemen normal tampil
+        if (bahanSection) { bahanSection.classList.add('hidden'); bahanSection.classList.remove('flex'); }
+        masukReturFields.forEach(el => { el.classList.remove('hidden'); el.classList.add('flex'); });
+        if (actionBar) actionBar.style.display = 'flex';
+
         if (mode === 'masuk') {
-            btnMasuk.className = "flex-1 py-2.5 text-xs font-bold rounded-lg brand-gradient-bg text-black shadow-sm transition-all flex items-center justify-center gap-2";
-            btnRetur.className = "flex-1 py-2.5 text-xs font-bold rounded-lg text-black hover:text-black transition-all flex items-center justify-center gap-2";
             banner.classList.add('hidden'); banner.classList.remove('flex');
             keteranganWrapper.classList.add('hidden'); keteranganWrapper.classList.remove('flex');
             headerTitle.innerHTML = 'INPUT <span class="text-black">DATA</span>';
             btnText.textContent = 'SIMPAN DATA MASUK';
             if (returSection) { returSection.classList.add('hidden'); returSection.classList.remove('flex'); }
         } else {
-            btnRetur.className = "flex-1 py-2.5 text-xs font-bold rounded-lg bg-red-500/20 text-red-400 border-2 border-red-500/40 shadow-sm transition-all flex items-center justify-center gap-2";
-            btnMasuk.className = "flex-1 py-2.5 text-xs font-bold rounded-lg text-black hover:text-black transition-all flex items-center justify-center gap-2";
             banner.classList.remove('hidden'); banner.classList.add('flex');
             keteranganWrapper.classList.remove('hidden'); keteranganWrapper.classList.add('flex');
             headerTitle.innerHTML = 'RETUR <span class="text-black">STOK</span>';
@@ -5251,6 +5775,29 @@ function updateSSK(tab, rowId) {
 
 	    let activeInputSheetRowId = null;
 	    let inputSheetDraft = null;
+    // Filter WARNA di sheet Detail Variasi (STOK MASUK): 'semua' = tampilkan semua warna master,
+    // 'bahan' = hanya warna yang bahan bakunya (kain, dst) masih ada stok untuk model yang sedang dipilih.
+    let _inputSheetWarnaFilterMode = 'bahan';
+    function setInputSheetWarnaFilter(mode) {
+        _inputSheetWarnaFilterMode = mode;
+        const activeCls = 'flex-1 py-1.5 rounded-lg text-[9px] font-bold transition-all brand-gradient-bg text-black';
+        const inactiveCls = 'flex-1 py-1.5 rounded-lg text-[9px] font-bold transition-all bg-darkBg text-black opacity-60';
+        const btnSemua = document.getElementById('input-sheet-warna-filter-semua');
+        const btnBahan = document.getElementById('input-sheet-warna-filter-bahan');
+        if (btnSemua) btnSemua.className = mode === 'semua' ? activeCls : inactiveCls;
+        if (btnBahan) btnBahan.className = mode === 'bahan' ? activeCls : inactiveCls;
+        if (btnBahan) btnBahan.innerHTML = '<i class="fa-solid fa-boxes-packing text-[8px] mr-1"></i>SESUAI STOK BAHAN';
+        if (activeInputSheetRowId != null) renderInputSheetOptions(activeInputSheetRowId);
+    }
+    // Cek apakah warna `w` punya bahan baku dengan stok > 0 untuk model yang sedang aktif di form Input Data
+    // (bahan UMUM ikut dihitung karena dipakai bersama semua model; bahan KHUSUS hanya dihitung untuk model-nya).
+    function _warnaPunyaBahanReady(w) {
+        return (masterData.bahanBaku || []).some(b =>
+            b.warnaId != null && String(b.warnaId) === String(w.id) &&
+            (!b.modelId || String(b.modelId) === String(inputState.modelId)) &&
+            b.stok > 0.0001
+        );
+    }
 
     function refreshInputRowSummary(id) {
         const qty = document.getElementById('input-qty-' + id)?.value || '0';
@@ -5272,6 +5819,9 @@ function updateSSK(tab, rowId) {
             warnaList = warnaList.filter(w => {
                 return masterData.ukuran.some(u => hitungStokItem(inputState.modelNama, w.nama, u.nama, inputState.brandNama, inputState.brandId) > 0);
             });
+        }
+        if (inputState.mode === 'masuk' && _inputSheetWarnaFilterMode === 'bahan') {
+            warnaList = warnaList.filter(w => _warnaPunyaBahanReady(w));
         }
         return warnaList;
     }
@@ -5329,7 +5879,7 @@ function updateSSK(tab, rowId) {
             const btn = document.createElement('button');
             btn.type = 'button';
 	            btn.className = 'input-choice-btn' + (!_isInputPlaceholder(warnaAktif) && warnaAktif.toUpperCase() === w.nama.toUpperCase() ? ' active' : '');
-	            btn.innerHTML = `<span class="w-5 h-5 rounded-md border-2 border-white/20 flex-shrink-0" style="background:${w.kode}"></span><span class="truncate">${w.nama}</span>`;
+	            btn.innerHTML = `<span class="w-5 h-5 rounded-md border-2 border-white/20 flex-shrink-0 relative" style="background:${w.kode}">${inputState.mode === 'masuk' && _warnaPunyaBahanReady(w) ? '<span class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-green-500 border border-white" title="Bahan ready"></span>' : ''}</span><span class="truncate">${w.nama}</span>`;
 	            btn.onclick = () => {
 	                if (!inputSheetDraft) inputSheetDraft = getInputRowData(rowId);
 	                inputSheetDraft.warna = w.nama;
@@ -5339,7 +5889,7 @@ function updateSSK(tab, rowId) {
 	            };
             warnaWrap.appendChild(btn);
         });
-        if (!warnaList.length) warnaWrap.innerHTML = '<div class="col-span-2 text-[11px] text-black py-4 text-center">Warna belum tersedia</div>';
+        if (!warnaList.length) warnaWrap.innerHTML = `<div class="col-span-2 text-[11px] text-black py-4 text-center">${inputState.mode === 'masuk' && _inputSheetWarnaFilterMode === 'bahan' ? 'Belum ada warna dengan stok bahan baku ready untuk model ini.' : 'Warna belum tersedia'}</div>`;
 
         const ukuranList = getInputSheetUkuranList(rowId);
         ukuranWrap.innerHTML = '';
@@ -5397,6 +5947,10 @@ function updateSSK(tab, rowId) {
 	        const brandLabel = document.getElementById('input-sheet-brand');
 	        if (brandLabel) brandLabel.textContent = inputState.brandNama || 'BRAND';
 	        if (qtySheet) qtySheet.value = inputSheetDraft.qty || 0;
+	        _inputSheetWarnaFilterMode = 'bahan';
+	        const warnaFilterWrap = document.getElementById('input-sheet-warna-filter-wrap');
+	        if (warnaFilterWrap) warnaFilterWrap.classList.toggle('hidden', inputState.mode !== 'masuk');
+	        setInputSheetWarnaFilter('bahan');
 	        renderInputSheetOptions(rowId);
 	        refreshInputSheetSSK(rowId);
         renderInputSheetAddedList(rowId);
@@ -6246,7 +6800,7 @@ function updateSSK(tab, rowId) {
             vendor: snapVendorNama, brand: snapBrandNama, model: snapModelNama,
             harga: snapModelHarga, status: snapStatusBayar, tanggal, jam
         }).select().single();
-        if (trxErr) { showToast('❌ Gagal simpan transaksi'); _trxIsSaving = false; return; }
+        if (trxErr) { console.error('Gagal simpan transaksi:', trxErr); showToast('❌ Gagal simpan transaksi: ' + (trxErr.message || trxErr.details || 'unknown error')); _trxIsSaving = false; return; }
         const { data: insertedTrxItems, error: itemErr } = await sbClient.from('transaksi_item').insert(items.map(i => ({ transaksi_id: trx.id, ...i }))).select();
         if (itemErr) {
             await sbClient.from('transaksi').delete().eq('id', trx.id);
@@ -8740,11 +9294,12 @@ function updateSSK(tab, rowId) {
             toast = document.createElement('div');
             toast.id = 'app-toast';
             toast.className = 'fixed top-6 left-1/2 -translate-x-1/2 bg-[#fdf6ec] border-2 border-[#FFB144] text-black text-xs font-bold px-5 py-3 rounded-2xl shadow-2xl transition-all';
-            toast.style.cssText = 'position:fixed;top:24px;left:50%;transform:translateX(-50%);z-index:9999999;';
+            toast.style.cssText = 'position:fixed;top:24px;left:50%;transform:translateX(-50%);z-index:9999999;pointer-events:none;';
             document.body.appendChild(toast);
         }
         toast.textContent = msg;
         toast.style.opacity = '1';
+        toast.style.pointerEvents = 'none';
         toast.style.transform = 'translateX(-50%) translateY(0)';
         clearTimeout(toast._timer);
         toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, 2500);
@@ -9656,70 +10211,285 @@ function updateSSK(tab, rowId) {
     });
 
     // ==================== MODUL HPP: RESEP TAB SWITCHER ====================
-    function switchResepTab(tab) {
-        const tabs = ['bahan', 'bom'];
-        tabs.forEach(t => {
-            const panel = document.getElementById('resep-panel-' + t);
-            const btn = document.getElementById('resep-tab-' + t);
-            if (panel) { panel.classList.add('hidden'); panel.classList.remove('flex'); }
-            if (btn) btn.className = "whitespace-nowrap flex-1 py-2 text-[10px] font-bold rounded-lg text-black hover:text-black transition-all";
-        });
-        const activePanel = document.getElementById('resep-panel-' + tab);
-        const activeBtn = document.getElementById('resep-tab-' + tab);
-        if (activePanel) { activePanel.classList.remove('hidden'); activePanel.classList.add('flex'); }
-        if (activeBtn) activeBtn.className = "whitespace-nowrap flex-1 py-2 text-[10px] font-bold rounded-lg bg-cardBg brand-text shadow-sm transition-all";
-    }
-
     // ==================== MODUL HPP: BAHAN BAKU CRUD ====================
+    function updateSatuanBahanDatalist() {
+        const el = document.getElementById('list-satuan-bahan');
+        if (!el) return;
+        const custom = masterData.satuanCustom || [];
+        const semua = [...new Set(custom)];
+        el.innerHTML = semua.map(s => `<option value="${s}"></option>`).join('');
+    }
+    // Isi dropdown WARNA di form Tambah Bahan Baku dari Master Data > Warna (auto-update kalau master warna berubah)
+    function populateInputBahanWarnaOptions() {
+        const el = document.getElementById('input-bahan-warna');
+        if (!el) return;
+        const cur = el.value;
+        el.innerHTML = '<option value="">-- Tanpa Warna --</option>' + (masterData.warna || []).map(w => `<option value="${w.id}">${w.nama}</option>`).join('');
+        el.value = (masterData.warna || []).some(w => String(w.id) === String(cur)) ? cur : '';
+        onInputBahanWarnaChange();
+    }
+    function onInputBahanWarnaChange() {
+        const el = document.getElementById('input-bahan-warna');
+        const swatch = document.getElementById('input-bahan-warna-swatch');
+        if (!el || !swatch) return;
+        const w = (masterData.warna || []).find(x => String(x.id) === String(el.value));
+        swatch.style.background = w ? w.kode : 'transparent';
+    }
+    function updateBahanNamaDatalist() {
+        const el = document.getElementById('list-nama-bahan');
+        if (!el) return;
+        const custom = masterData.namaBahanCustom || [];
+        const elBrand = document.getElementById('input-bahan-brand');
+        const brandId = elBrand ? elBrand.value : '';
+        // Tampilkan nama bahan UMUM (tanpa brand) + nama bahan khusus BRAND yang sedang dipilih di form
+        const tersaring = custom.filter(s => !s.brandId || (brandId && String(s.brandId) === String(brandId)));
+        const semuaNama = [...new Set(tersaring.map(s => s.nama))];
+        el.innerHTML = semuaNama.map(s => `<option value="${s}"></option>`).join('');
+    }
     async function simpanBahanBaku() {
         const nama = document.getElementById('input-bahan-nama').value.trim();
         if (!nama) { showAlert('Nama bahan tidak boleh kosong!', {type:'warning'}); return; }
         const satuan = document.getElementById('input-bahan-satuan').value.trim() || 'pcs';
         const harga = parseInt(document.getElementById('input-bahan-harga').value) || 0;
         const stok = parseFloat(document.getElementById('input-bahan-stok').value) || 0;
-        const isDuplikat = masterData.bahanBaku.some(b => b.nama.toUpperCase() === nama.toUpperCase());
-        if (isDuplikat) { showToast('⚠️ Bahan "' + nama.toUpperCase() + '" sudah ada!'); return; }
-        const { data, error } = await sbClient.from('bahan_baku').insert({ nama, satuan, harga_satuan: harga, stok }).select().single();
+        const brandId = document.getElementById('input-bahan-brand').value || null;
+        const modelId = document.getElementById('input-bahan-model').value || null;
+        const warnaId = document.getElementById('input-bahan-warna').value || null;
+        const brandObj = brandId ? masterData.brand.find(b => String(b.id) === String(brandId)) : null;
+        const modelObj = modelId ? masterData.model.find(m => String(m.id) === String(modelId)) : null;
+        const warnaObj = warnaId ? masterData.warna.find(w => String(w.id) === String(warnaId)) : null;
+        const brandNama = brandObj ? brandObj.nama : '';
+        const modelNama = modelObj ? modelObj.nama : '';
+        const warnaNama = warnaObj ? warnaObj.nama : '';
+        const isDuplikat = masterData.bahanBaku.some(b => b.nama.toUpperCase() === nama.toUpperCase() && String(b.modelId || '') === String(modelId || '') && String(b.warnaId || '') === String(warnaId || ''));
+        if (isDuplikat) { showToast('⚠️ Bahan "' + nama.toUpperCase() + (warnaNama ? ' - ' + warnaNama : '') + '" sudah ada!'); return; }
+        const { data, error } = await sbClient.from('bahan_baku').insert({ nama, satuan, harga_satuan: harga, stok, brand_id: brandId, brand_nama: brandNama, model_id: modelId, model_nama: modelNama, warna_id: warnaId, warna_nama: warnaNama }).select().single();
         if (error) { showToast('❌ Gagal simpan bahan baku. Jalankan SQL setup terbaru dulu (Pengaturan > Setup Database).'); return; }
-        masterData.bahanBaku.push({ id: data.id, nama: data.nama, satuan: data.satuan || 'pcs', stok: Number(data.stok) || 0, hargaSatuan: data.harga_satuan || 0 });
+        masterData.bahanBaku.push({ id: data.id, nama: data.nama, satuan: data.satuan || 'pcs', stok: Number(data.stok) || 0, hargaSatuan: data.harga_satuan || 0, brandId: data.brand_id || null, brandNama: data.brand_nama || '', modelId: data.model_id || null, modelNama: data.model_nama || '', warnaId: data.warna_id || null, warnaNama: data.warna_nama || '' });
+        // Buat batch awal (harga beli pertama) supaya FIFO restock nantinya konsisten sejak awal.
+        if (stok > 0) {
+            const now = new Date();
+            const tanggal = now.toLocaleDateString('id-ID', { day:'2-digit', month:'short', year:'numeric' });
+            const jam = now.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
+            try {
+                const { data: batch, error: batchErr } = await sbClient.from('bahan_baku_batch').insert({
+                    bahan_baku_id: data.id, harga_beli: harga, qty_awal: stok, qty_sisa: stok, keterangan: 'Stok awal', tanggal, jam
+                }).select().single();
+                if (!batchErr && batch) {
+                    masterData.bahanBakuBatch.push({ id: batch.id, bahanBakuId: batch.bahan_baku_id, hargaBeli: batch.harga_beli || 0, qtyAwal: Number(batch.qty_awal) || 0, qtySisa: Number(batch.qty_sisa) || 0, keterangan: batch.keterangan || '', tanggal: batch.tanggal, jam: batch.jam, createdAt: batch.created_at });
+                }
+            } catch(e) { console.warn('Tabel bahan_baku_batch belum ada — jalankan SQL setup terbaru untuk mengaktifkan RESTOK per-harga (FIFO).'); }
+        }
         document.getElementById('input-bahan-nama').value = '';
         document.getElementById('input-bahan-satuan').value = '';
         document.getElementById('input-bahan-harga').value = '';
         document.getElementById('input-bahan-stok').value = '';
+        document.getElementById('input-bahan-brand').value = '';
+        document.getElementById('input-bahan-warna').value = '';
+        onInputBahanWarnaChange();
+        const elKhususToggle = document.getElementById('input-bahan-khusus-toggle');
+        if (elKhususToggle) elKhususToggle.checked = false;
+        toggleBahanKhususMode(false);
         renderBahanBakuList();
         populateResepBahanOptions();
+        updateSatuanBahanDatalist();
+        updateBahanNamaDatalist();
         showToast('✅ Bahan baku disimpan!');
     }
     async function hapusBahanBaku(id) {
         showConfirm('Hapus bahan baku ini?\nResep yang memakai bahan ini juga akan terhapus.', async function() {
             await sbClient.from('bahan_baku').delete().eq('id', id);
             masterData.bahanBaku = masterData.bahanBaku.filter(b => b.id !== id);
+            masterData.bahanBakuBatch = masterData.bahanBakuBatch.filter(x => x.bahanBakuId !== id);
             masterData.resep = masterData.resep.filter(r => r.bahanBakuId !== id);
             renderBahanBakuList();
             populateResepBahanOptions();
             renderResepBomList();
         }, {title:'HAPUS BAHAN BAKU', type:'danger', icon:'🗑️', ok:'YA, HAPUS'});
     }
+
+    // ==================== MODUL HPP: RESTOK BAHAN BAKU PER-BATCH (FIFO) ====================
+    // Setiap kali bahan baku dibeli lagi dengan harga yang mungkin beda dari sebelumnya,
+    // simpan sebagai batch baru (bukan menimpa harga lama). Saat produksi memakai bahan,
+    // stok diambil dari batch TERLAMA dulu (FIFO) supaya biaya bahan di HPP tetap akurat
+    // meskipun harga beli naik/turun dari waktu ke waktu.
+    function bukaRestockBahan(id) {
+        const bahan = masterData.bahanBaku.find(b => b.id === id);
+        if (!bahan) return;
+        const modal = document.getElementById('modal-restock-bahan');
+        if (!modal) return;
+        document.getElementById('restock-info-text').innerHTML =
+            `<span style="color:#ff8c00;font-weight:900;">${bahan.nama}${bahan.warnaNama ? ' - ' + bahan.warnaNama : ''}</span>` +
+            (bahan.modelId ? ` <span style="font-size:10px;color:#000;">(${bahan.brandNama} • ${bahan.modelNama})</span>` : ' <span style="font-size:10px;color:#000;">(UMUM)</span>') +
+            `<br><span style="font-size:10px;color:#000;">Stok sekarang: <b>${bahan.stok.toLocaleString('id-ID')} ${bahan.satuan}</b> • Harga beli terakhir: Rp ${bahan.hargaSatuan.toLocaleString('id-ID')}/${bahan.satuan}</span>`;
+        document.getElementById('restock-satuan-label').textContent = bahan.satuan;
+        document.getElementById('restock-qty').value = '';
+        document.getElementById('restock-harga').value = bahan.hargaSatuan || '';
+        document.getElementById('restock-keterangan').value = '';
+        modal.dataset.bahanId = id;
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+    function tutupRestockBahan() {
+        const modal = document.getElementById('modal-restock-bahan');
+        if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); }
+    }
+    async function simpanRestockBahan() {
+        const modal = document.getElementById('modal-restock-bahan');
+        if (!modal) return;
+        const id = parseInt(modal.dataset.bahanId);
+        const bahan = masterData.bahanBaku.find(b => b.id === id);
+        if (!bahan) { tutupRestockBahan(); return; }
+        const qty = parseFloat(document.getElementById('restock-qty').value);
+        const harga = parseInt(document.getElementById('restock-harga').value) || 0;
+        const keterangan = document.getElementById('restock-keterangan').value.trim();
+        if (!qty || qty <= 0) { showToast('⚠️ Isi qty restock yang benar (> 0)'); return; }
+        const btnSimpan = document.getElementById('restock-btn-simpan');
+        if (btnSimpan) { btnSimpan.disabled = true; btnSimpan.textContent = 'Menyimpan...'; }
+        try {
+            const now = new Date();
+            const tanggal = now.toLocaleDateString('id-ID', { day:'2-digit', month:'short', year:'numeric' });
+            const jam = now.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
+            const { data: batch, error: batchErr } = await sbClient.from('bahan_baku_batch').insert({
+                bahan_baku_id: id, harga_beli: harga, qty_awal: qty, qty_sisa: qty, keterangan: keterangan || 'Restok', tanggal, jam
+            }).select().single();
+            if (batchErr) throw batchErr;
+            masterData.bahanBakuBatch.push({ id: batch.id, bahanBakuId: batch.bahan_baku_id, hargaBeli: batch.harga_beli || 0, qtyAwal: Number(batch.qty_awal) || 0, qtySisa: Number(batch.qty_sisa) || 0, keterangan: batch.keterangan || '', tanggal: batch.tanggal, jam: batch.jam, createdAt: batch.created_at });
+
+            const stokBaru = bahan.stok + qty;
+            const { error: bErr } = await sbClient.from('bahan_baku').update({ stok: stokBaru, harga_satuan: harga }).eq('id', id);
+            if (bErr) throw bErr;
+            bahan.stok = stokBaru;
+            bahan.hargaSatuan = harga; // harga referensi = harga beli terakhir (untuk tampilan cepat & estimasi resep)
+
+            renderBahanBakuList();
+            if (typeof renderProduksiBahanPreview === 'function') renderProduksiBahanPreview();
+            tutupRestockBahan();
+            showToast(`✅ Restok berhasil! +${qty.toLocaleString('id-ID')} ${bahan.satuan} @ Rp ${harga.toLocaleString('id-ID')}`);
+        } catch(err) {
+            showToast('❌ Gagal restok: ' + (err.message || err));
+        } finally {
+            if (btnSimpan) { btnSimpan.disabled = false; btnSimpan.textContent = 'SIMPAN RESTOK'; }
+        }
+    }
+    // Ambil daftar batch aktif (qty_sisa > 0) untuk 1 bahan baku, urut dari yang PALING LAMA (FIFO).
+    function getBatchAktifBahan(bahanBakuId) {
+        return masterData.bahanBakuBatch
+            .filter(x => x.bahanBakuId === bahanBakuId && x.qtySisa > 0.0001)
+            .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    }
+    // Simulasikan konsumsi FIFO sejumlah `butuh` dari batch-batch aktif TANPA mengubah data apapun.
+    // Dipakai untuk estimasi biaya (preview) maupun untuk benar-benar dieksekusi saat produksi diproses.
+    function simulasiFifoBahan(bahanBakuId, butuh) {
+        const batches = getBatchAktifBahan(bahanBakuId);
+        let sisaButuh = butuh;
+        let biaya = 0;
+        const konsumsi = [];
+        for (const batch of batches) {
+            if (sisaButuh <= 0.0001) break;
+            const ambil = Math.min(sisaButuh, batch.qtySisa);
+            biaya += ambil * batch.hargaBeli;
+            konsumsi.push({ batchId: batch.id, qty: ambil, harga: batch.hargaBeli });
+            sisaButuh -= ambil;
+        }
+        // Jika tidak ada batch sama sekali (misal data lama sebelum fitur ini ada), fallback ke harga_satuan flat.
+        if (batches.length === 0) {
+            const bahan = masterData.bahanBaku.find(b => b.id === bahanBakuId);
+            biaya = butuh * (bahan ? bahan.hargaSatuan : 0);
+            sisaButuh = 0;
+        }
+        return { biaya, cukup: sisaButuh <= 0.0001, konsumsi, kurang: Math.max(0, sisaButuh) };
+    }
+    // Eksekusi konsumsi FIFO: kurangi qty_sisa tiap batch yang kepakai (dipanggil saat produksi benar-benar diproses).
+    async function eksekusiFifoBahan(konsumsi) {
+        for (const k of konsumsi) {
+            const batch = masterData.bahanBakuBatch.find(b => b.id === k.batchId);
+            if (!batch) continue;
+            const sisaBaru = Math.max(0, batch.qtySisa - k.qty);
+            const { error } = await sbClient.from('bahan_baku_batch').update({ qty_sisa: sisaBaru }).eq('id', batch.id);
+            if (!error) batch.qtySisa = sisaBaru;
+        }
+    }
+    // Filter DAFTAR BAHAN BAKU: 'semua' | 'umum' (tanpa brand/model, dipakai bersama)
+    // | 'khusus' (terkunci ke 1 brand+model tertentu)
+    let _bahanBakuFilter = 'semua';
+    function setBahanBakuFilter(mode) {
+        _bahanBakuFilter = mode;
+        const activeCls = 'py-2 rounded-lg text-[10px] font-bold transition-all brand-gradient-bg text-black';
+        const inactiveCls = 'py-2 rounded-lg text-[10px] font-bold transition-all bg-darkBg text-black opacity-60';
+        const btnSemua = document.getElementById('bahan-filter-semua');
+        const btnUmum = document.getElementById('bahan-filter-umum');
+        const btnKhusus = document.getElementById('bahan-filter-khusus');
+        if (btnSemua) btnSemua.className = mode === 'semua' ? activeCls : inactiveCls;
+        if (btnUmum) btnUmum.className = mode === 'umum' ? activeCls : inactiveCls;
+        if (btnKhusus) btnKhusus.className = mode === 'khusus' ? activeCls : inactiveCls;
+        if (btnUmum) btnUmum.innerHTML = '<i class="fa-solid fa-globe text-[9px] mr-1"></i>UMUM';
+        if (btnKhusus) btnKhusus.innerHTML = '<i class="fa-solid fa-lock text-[9px] mr-1"></i>KHUSUS';
+        renderBahanBakuList();
+    }
+
     function renderBahanBakuList() {
         const list = document.getElementById('bahan-baku-list');
         if (!list) return;
+        updateSatuanBahanDatalist();
+        updateBahanNamaDatalist();
         const countEl = document.getElementById('bahan-baku-count');
-        if (countEl) countEl.textContent = masterData.bahanBaku.length + ' data';
-        if (masterData.bahanBaku.length === 0) {
-            list.innerHTML = '<div class="text-center text-black text-[11px] py-8 flex flex-col items-center gap-2"><i class="fa-solid fa-inbox text-2xl opacity-40"></i>Belum ada bahan baku.</div>';
+        const filtered = masterData.bahanBaku.filter(b => {
+            if (_bahanBakuFilter === 'umum') return !b.modelId;
+            if (_bahanBakuFilter === 'khusus') return !!b.modelId;
+            return true;
+        });
+        if (countEl) countEl.textContent = filtered.length + ' data';
+        if (filtered.length === 0) {
+            const pesan = _bahanBakuFilter === 'umum' ? 'Belum ada bahan umum.' : (_bahanBakuFilter === 'khusus' ? 'Belum ada bahan khusus.' : 'Belum ada bahan baku.');
+            list.innerHTML = `<div class="text-center text-black text-[11px] py-8 flex flex-col items-center gap-2"><i class="fa-solid fa-inbox text-2xl opacity-40"></i>${pesan}</div>`;
             return;
         }
-        list.innerHTML = masterData.bahanBaku.map(b => `
-            <div class="flex items-center justify-between px-4 py-2.5 hover:bg-darkBg transition-colors">
-                <div class="flex items-center gap-3 min-w-0">
-                    <div class="w-8 h-8 rounded-lg brand-bg flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-boxes-packing text-black text-xs"></i></div>
-                    <div class="min-w-0">
-                        <div class="text-[11px] font-bold text-black uppercase truncate">${b.nama}</div>
-                        <div class="text-[9px] text-black">Stok: <b>${b.stok.toLocaleString('id-ID')} ${b.satuan}</b> • Rp ${b.hargaSatuan.toLocaleString('id-ID')}/${b.satuan}</div>
+        list.innerHTML = filtered.map(b => {
+            const batches = getBatchAktifBahan(b.id);
+            const hargaMin = batches.length ? Math.min(...batches.map(x => x.hargaBeli)) : b.hargaSatuan;
+            const hargaMax = batches.length ? Math.max(...batches.map(x => x.hargaBeli)) : b.hargaSatuan;
+            const campuran = batches.length > 1 && hargaMin !== hargaMax;
+            const labelHarga = campuran
+                ? `Rp ${hargaMin.toLocaleString('id-ID')}–${hargaMax.toLocaleString('id-ID')}/${b.satuan}`
+                : `Rp ${b.hargaSatuan.toLocaleString('id-ID')}/${b.satuan}`;
+            const batchRows = batches.map(x => `
+                <div class="flex items-center justify-between px-4 py-1.5 text-[9px] text-black border-t border-borderDark/40">
+                    <span class="opacity-70">${x.tanggal || '-'}${x.keterangan ? ' • ' + x.keterangan : ''}</span>
+                    <span class="font-bold">${x.qtySisa.toLocaleString('id-ID')} ${b.satuan} @ Rp ${x.hargaBeli.toLocaleString('id-ID')}</span>
+                </div>`).join('');
+            return `
+            <div class="flex flex-col">
+                <div class="flex items-center justify-between px-4 py-2.5 hover:bg-darkBg transition-colors">
+                    <div class="flex items-center gap-3 min-w-0 flex-1" ${batches.length > 1 ? `onclick="toggleBahanBatchDetail(${b.id})" style="cursor:pointer;"` : ''}>
+                        <div class="w-8 h-8 rounded-lg brand-bg flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-boxes-packing text-black text-xs"></i></div>
+                        <div class="min-w-0">
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                                <div class="text-[11px] font-bold text-black uppercase truncate">${b.nama}</div>
+                                ${b.warnaId ? (() => { const w = masterData.warna.find(x => x.id === b.warnaId); return `<span class="bg-black/10 text-black text-[8px] font-black pl-1 pr-1.5 py-0.5 rounded uppercase flex-shrink-0 flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full border border-black/30 flex-shrink-0" style="background:${w ? w.kode : '#ccc'}"></span>${b.warnaNama}</span>`; })() : ''}
+                                ${b.modelId ? `<span class="bg-orange-500/15 text-orange-700 text-[8px] font-black px-1.5 py-0.5 rounded uppercase flex-shrink-0"><i class="fa-solid fa-lock text-[7px] mr-0.5"></i>${b.brandNama} • ${b.modelNama}</span>` : `<span class="bg-black/10 text-black/60 text-[8px] font-black px-1.5 py-0.5 rounded uppercase flex-shrink-0">UMUM</span>`}
+                                ${batches.length > 1 ? `<i class="fa-solid fa-chevron-down text-[8px] text-black opacity-50" id="bahan-chevron-${b.id}"></i>` : ''}
+                            </div>
+                            <div class="text-[9px] text-black">Stok: <b>${b.stok.toLocaleString('id-ID')} ${b.satuan}</b> • ${labelHarga}${campuran ? ' <span class="opacity-60">(campuran harga)</span>' : ''}</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1.5 flex-shrink-0">
+                        <button onclick="bukaRestockBahan(${b.id})" title="Restok / tambah stok dengan harga baru" class="w-7 h-7 rounded-lg bg-green-500/10 border-2 border-green-500/30 text-green-600 flex items-center justify-center hover:bg-green-500/20 transition-colors"><i class="fa-solid fa-plus text-[10px]"></i></button>
+                        <button onclick="hapusBahanBaku(${b.id})" class="w-7 h-7 rounded-lg bg-red-500/10 border-2 border-red-500/30 text-red-400 flex items-center justify-center hover:bg-red-500/20 transition-colors"><i class="fa-regular fa-trash-can text-[10px]"></i></button>
                     </div>
                 </div>
-                <button onclick="hapusBahanBaku(${b.id})" class="w-7 h-7 rounded-lg bg-red-500/10 border-2 border-red-500/30 text-red-400 flex items-center justify-center hover:bg-red-500/20 transition-colors flex-shrink-0"><i class="fa-regular fa-trash-can text-[10px]"></i></button>
-            </div>`).join('');
+                ${batches.length > 1 ? `<div id="bahan-batch-detail-${b.id}" class="hidden flex-col bg-black/[0.03]">${batchRows}</div>` : ''}
+            </div>`;
+        }).join('');
+    }
+    function toggleBahanBatchDetail(id) {
+        const el = document.getElementById('bahan-batch-detail-' + id);
+        const chevron = document.getElementById('bahan-chevron-' + id);
+        if (!el) return;
+        const willShow = el.classList.contains('hidden');
+        el.classList.toggle('hidden', !willShow);
+        el.classList.toggle('flex', willShow);
+        if (chevron) chevron.style.transform = willShow ? 'rotate(180deg)' : 'rotate(0deg)';
     }
 
     // ==================== MODUL HPP: DROPDOWN POPULATOR (Brand/Model/Bahan) ====================
@@ -9727,24 +10497,339 @@ function updateSSK(tab, rowId) {
         const opts = '<option value="">-- Brand --</option>' + masterData.brand.map(b => `<option value="${b.id}">${b.nama}</option>`).join('');
         const elResep = document.getElementById('resep-pilih-brand');
         const elProd = document.getElementById('produksi-pilih-brand');
+        const elBahanBrand = document.getElementById('input-bahan-brand');
         if (elResep) { const cur = elResep.value; elResep.innerHTML = opts; elResep.value = cur; }
         if (elProd) { const cur = elProd.value; elProd.innerHTML = opts; elProd.value = cur; }
+        if (elBahanBrand) {
+            const optsUmum = '<option value="">-- Umum (Semua Brand) --</option>' + masterData.brand.map(b => `<option value="${b.id}">${b.nama}</option>`).join('');
+            const cur = elBahanBrand.value; elBahanBrand.innerHTML = optsUmum; elBahanBrand.value = cur;
+            onInputBahanBrandChange();
+        }
         populateResepBahanOptions();
     }
+    // Toggle ON/OFF: mengunci BRAND & MODEL untuk bahan baku (KHUSUS) vs dikosongkan (UMUM)
+    function toggleBahanKhususMode(checked) {
+        const elBrand = document.getElementById('input-bahan-brand');
+        const elModel = document.getElementById('input-bahan-model');
+        const elStatus = document.getElementById('bahan-khusus-status-text');
+        if (!elBrand || !elModel) return;
+        if (checked) {
+            elBrand.disabled = false;
+            elModel.disabled = false;
+            elBrand.classList.remove('opacity-50', 'cursor-not-allowed');
+            elModel.classList.remove('opacity-50', 'cursor-not-allowed');
+            if (elStatus) elStatus.textContent = 'KHUSUS (ON):';
+        } else {
+            elBrand.value = '';
+            onInputBahanBrandChange();
+            elBrand.disabled = true;
+            elModel.disabled = true;
+            elBrand.classList.add('opacity-50', 'cursor-not-allowed');
+            elModel.classList.add('opacity-50', 'cursor-not-allowed');
+            if (elStatus) elStatus.textContent = 'UMUM (OFF):';
+        }
+    }
+    // Cascade BRAND -> MODEL khusus di form Tambah Bahan Baku (untuk mengunci bahan ke 1 model)
+    function onInputBahanBrandChange() {
+        const brandId = document.getElementById('input-bahan-brand').value;
+        const elModel = document.getElementById('input-bahan-model');
+        if (!elModel) return;
+        const cur = elModel.value;
+        const models = brandId ? masterData.model.filter(m => String(m.brandId) === String(brandId)) : [];
+        elModel.innerHTML = '<option value="">-- Umum (Semua Model) --</option>' + models.map(m => `<option value="${m.id}">${m.nama}</option>`).join('');
+        elModel.value = models.some(m => String(m.id) === String(cur)) ? cur : '';
+        if (typeof updateBahanNamaDatalist === 'function') updateBahanNamaDatalist();
+    }
+    // Dropdown pilih bahan di RESEP hanya menampilkan: bahan UMUM (tanpa model) + bahan yang khusus
+    // untuk model yang sedang dipilih. Bahan khusus model lain disembunyikan (stok tidak dibagi ke model lain).
     function populateResepBahanOptions() {
         const el = document.getElementById('resep-pilih-bahan');
         if (!el) return;
+        const modelId = document.getElementById('resep-pilih-model') ? document.getElementById('resep-pilih-model').value : '';
         const cur = el.value;
-        el.innerHTML = '<option value="">-- Bahan --</option>' + masterData.bahanBaku.map(b => `<option value="${b.id}">${b.nama} (${b.satuan})</option>`).join('');
-        el.value = cur;
+        const tersedia = masterData.bahanBaku.filter(b => !b.modelId || (modelId && String(b.modelId) === String(modelId)));
+        el.innerHTML = '<option value="">-- Bahan --</option>' + tersedia.map(b => `<option value="${b.id}">${b.nama}${b.warnaNama ? ' - ' + b.warnaNama : ''}${b.modelId ? ' 🔒' : ''} (${b.satuan}, stok ${b.stok.toLocaleString('id-ID')})</option>`).join('');
+        el.value = tersedia.some(b => String(b.id) === String(cur)) ? cur : '';
     }
 
-    // ==================== MODUL HPP: RESEP / BOM ====================
+    // ==================== MODUL HPP: RESEP / BOM (draft: tambah dulu, simpan belakangan) ====================
+    // resepDraft menampung SEMUA komposisi (bahan baku + biaya lain seperti jahit/obras) untuk
+    // brand+model yang sedang dipilih. Tidak ada perubahan yang masuk ke database sampai
+    // tombol "SIMPAN RESEP" ditekan — supaya 1 model = 1 kesatuan resep yang tersimpan sekaligus.
+    let resepDraft = [];
+    let resepDraftSeq = 0;
+    let resepDraftDirty = false;
+    let resepInputMode = 'bahan';
+
+    function setResepInputMode(mode) {
+        resepInputMode = mode;
+        const elBahan = document.getElementById('resep-input-bahan');
+        const elBiaya = document.getElementById('resep-input-biaya');
+        if (elBahan) elBahan.classList.toggle('hidden', mode !== 'bahan');
+        if (elBiaya) elBiaya.classList.toggle('hidden', mode !== 'biaya');
+        const bBtn = document.getElementById('resep-mode-bahan-btn');
+        const cBtn = document.getElementById('resep-mode-biaya-btn');
+        if (bBtn) bBtn.className = 'py-2 rounded-lg text-[10px] font-bold transition-all ' + (mode === 'bahan' ? 'brand-gradient-bg text-black' : 'text-black opacity-50');
+        if (cBtn) cBtn.className = 'py-2 rounded-lg text-[10px] font-bold transition-all ' + (mode === 'biaya' ? 'brand-gradient-bg text-black' : 'text-black opacity-50');
+        if (mode === 'biaya') { populateResepPayrollBrandOptions(); populateResepPayrollBagianOptions(); }
+    }
+
+    // Cari harga jahit di project Supabase Payroll. Urutan prioritas:
+    // 1) Tabel Harga umum (brand + bagian[dari Pengaturan] + pekerjaan = nama Model) -> sumber utama
+    // 2) Data "Ongkos Jahit" khusus (type=ongkos_jahit) dengan brand+model -> data lama versi baru
+    // 3) Data "Ongkos Jahit" khusus tanpa brand (model saja) -> data paling lama
+    async function _cariOngkosJahitDiPayroll(brandNama, modelNama) {
+        if (payrollBagianJahit) {
+            const r1 = await sbPayroll
+                .from('payroll_harga')
+                .select('id, data')
+                .eq('data->>brand', brandNama)
+                .eq('data->>bagian', payrollBagianJahit)
+                .eq('data->>pekerjaan', modelNama)
+                .limit(1);
+            if (r1.error) throw r1.error;
+            if (r1.data && r1.data.length > 0) return { harga: Number(r1.data[0].data.harga) || 0, sumber: 'harga' };
+        }
+        const r2 = await sbPayroll
+            .from('payroll_harga')
+            .select('id, data')
+            .eq('data->>type', 'ongkos_jahit')
+            .eq('data->>brand', brandNama)
+            .eq('data->>model', modelNama)
+            .limit(1);
+        if (r2.error) throw r2.error;
+        if (r2.data && r2.data.length > 0) return { harga: Number(r2.data[0].data.harga) || 0, sumber: 'ongkos_jahit' };
+        const r3 = await sbPayroll
+            .from('payroll_harga')
+            .select('id, data')
+            .eq('data->>type', 'ongkos_jahit')
+            .eq('data->>model', modelNama)
+            .is('data->>brand', null)
+            .limit(1);
+        if (r3.error) throw r3.error;
+        if (r3.data && r3.data.length > 0) return { harga: Number(r3.data[0].data.harga) || 0, sumber: 'ongkos_jahit_lama' };
+        return null;
+    }
+
+    // ==================== MODUL RESEP: PILIH BAGIAN + PEKERJAAN LANGSUNG DARI PAYROLL ====================
+    // Supaya skema di Inventory sama persis dengan Payroll: BRAND + BAGIAN + PEKERJAAN.
+    // Alur: pilih BAGIAN (daftar diambil dari payroll_master) -> pilih PEKERJAAN (daftar diambil dari
+    // payroll_harga, difilter Brand & Bagian yang sedang dipilih) -> harga otomatis ketarik.
+    let resepPayrollBagianLoaded = false;
+    let resepPayrollBrandLoaded = false;
+
+    // Muat daftar Brand persis seperti yang ada di Payroll (bukan dari tabel Brand Inventory),
+    // supaya user bisa pilih Brand yang PASTI cocok dengan data Payroll walau penulisannya
+    // beda dengan Brand di Inventory (mis. "BM" di Inventory vs "BM AN" di Payroll).
+    async function populateResepPayrollBrandOptions(forceReload = false) {
+        const el = document.getElementById('resep-payroll-brand');
+        if (!el) return;
+        if (!sbPayroll) { el.innerHTML = '<option value="">-- Brand (Payroll) --</option>'; return; }
+        if (resepPayrollBrandLoaded && !forceReload) return;
+        try {
+            const { data, error } = await sbPayroll.from('payroll_harga').select('id, data');
+            if (error) throw error;
+            const namaList = [...new Set((data || []).map(r => (r.data && r.data.brand) ? String(r.data.brand).trim().toUpperCase() : '').filter(Boolean))].sort();
+            const cur = el.value;
+            el.innerHTML = '<option value="">-- Brand (Payroll) --</option>' + namaList.map(n => `<option value="${n}">${n}</option>`).join('');
+            resepPayrollBrandLoaded = true;
+            // Coba cocokkan otomatis dengan Brand Inventory yang sedang dipilih (kalau penulisannya sama persis)
+            const brandId = document.getElementById('resep-pilih-brand').value;
+            const brand = masterData.brand.find(b => String(b.id) === String(brandId));
+            const brandInventoryNama = brand ? (brand.nama || '').trim().toUpperCase() : '';
+            if (cur && namaList.includes(cur)) {
+                el.value = cur;
+            } else if (brandInventoryNama && namaList.includes(brandInventoryNama)) {
+                el.value = brandInventoryNama;
+            } else {
+                el.value = '';
+            }
+            onResepPayrollBrandChange();
+        } catch (e) {
+            console.warn('Gagal memuat daftar Brand dari Payroll:', e);
+        }
+    }
+
+    function onResepPayrollBrandChange() {
+        resetResepPayrollPekerjaanSelect();
+        const info = document.getElementById('resep-payroll-info');
+        const elBrand = document.getElementById('resep-payroll-brand');
+        const elBagian = document.getElementById('resep-payroll-bagian');
+        if (elBrand && !elBrand.value) {
+            if (info) info.textContent = 'Belum ada Brand yang cocok otomatis dari Payroll. Pilih manual Brand (Payroll) di atas dulu.';
+            return;
+        }
+        // Kalau Bagian sudah dipilih sebelumnya, refresh daftar Pekerjaan sesuai Brand (Payroll) baru
+        if (elBagian && elBagian.value) onResepPayrollBagianChange();
+        else if (info) info.textContent = 'Brand (Payroll) dipilih. Sekarang pilih Bagian & Pekerjaan sesuai yang ada di Payroll.';
+    }
+
+    function resetResepPayrollBrandSelect() {
+        const el = document.getElementById('resep-payroll-brand');
+        if (el) el.value = '';
+        resepPayrollBrandLoaded = false;
+    }
+
+    async function populateResepPayrollBagianOptions(forceReload = false) {
+        const el = document.getElementById('resep-payroll-bagian');
+        if (!el) return;
+        if (!sbPayroll) { el.innerHTML = '<option value="">-- Bagian --</option>'; return; }
+        if (resepPayrollBagianLoaded && !forceReload) {
+            if (!el.value && payrollBagianJahit && [...el.options].some(o => o.value === payrollBagianJahit)) {
+                el.value = payrollBagianJahit;
+                onResepPayrollBagianChange();
+            }
+            return;
+        }
+        try {
+            const { data, error } = await sbPayroll.from('payroll_master').select('id, data').eq('data->>type', 'bagian');
+            if (error) throw error;
+            const namaList = [...new Set((data || []).map(r => (r.data && r.data.nama) ? String(r.data.nama).trim().toUpperCase() : '').filter(Boolean))].sort();
+            const cur = el.value;
+            el.innerHTML = '<option value="">-- Bagian --</option>' + namaList.map(n => `<option value="${n}">${n}</option>`).join('');
+            el.value = namaList.includes(cur) ? cur : '';
+            resepPayrollBagianLoaded = true;
+            if (!el.value && payrollBagianJahit && namaList.includes(payrollBagianJahit)) {
+                el.value = payrollBagianJahit;
+                onResepPayrollBagianChange();
+            }
+        } catch (e) {
+            console.warn('Gagal memuat daftar Bagian dari Payroll:', e);
+        }
+    }
+
+    async function onResepPayrollBagianChange() {
+        const bagianNama = document.getElementById('resep-payroll-bagian').value;
+        const elPekerjaan = document.getElementById('resep-payroll-pekerjaan');
+        const info = document.getElementById('resep-payroll-info');
+        elPekerjaan.innerHTML = '<option value="">-- Pekerjaan --</option>';
+        if (!bagianNama) { if (info) info.textContent = 'Pilih Brand (Payroll) di atas dulu, lalu pilih Bagian & Pekerjaan sesuai yang ada di Payroll.'; return; }
+        // Prioritas: Brand yang dipilih dari dropdown "BRAND (Payroll)" (dijamin cocok persis dengan data Payroll).
+        // Fallback: Brand Inventory di atas (untuk kompatibilitas kalau dropdown Payroll belum sempat dimuat/dipilih).
+        const elBrandPayroll = document.getElementById('resep-payroll-brand');
+        let brandNama = elBrandPayroll ? elBrandPayroll.value : '';
+        if (!brandNama) {
+            const brandId = document.getElementById('resep-pilih-brand').value;
+            const brand = masterData.brand.find(b => String(b.id) === String(brandId));
+            if (!brand) { if (info) info.textContent = 'Pilih Brand (Payroll) dulu di atas.'; return; }
+            brandNama = (brand.nama || '').trim().toUpperCase();
+        }
+        if (!sbPayroll) return;
+        try {
+            const { data, error } = await sbPayroll.from('payroll_harga').select('id, data')
+                .eq('data->>brand', brandNama).eq('data->>bagian', bagianNama);
+            if (error) throw error;
+            const pekerjaanList = [...new Set((data || []).map(r => (r.data && r.data.pekerjaan) ? String(r.data.pekerjaan).trim().toUpperCase() : '').filter(Boolean))].sort();
+            elPekerjaan.innerHTML = '<option value="">-- Pekerjaan --</option>' + pekerjaanList.map(p => `<option value="${p}">${p}</option>`).join('');
+            const modelId = document.getElementById('resep-pilih-model').value;
+            const model = masterData.model.find(m => String(m.id) === String(modelId));
+            const modelNama = model ? (model.nama || '').trim().toUpperCase() : '';
+            if (modelNama && pekerjaanList.includes(modelNama)) elPekerjaan.value = modelNama;
+            if (info) info.textContent = pekerjaanList.length
+                ? `Ditemukan ${pekerjaanList.length} pekerjaan untuk Brand "${brandNama}" - Bagian "${bagianNama}". Pilih salah satu, lalu klik "AMBIL ONGKOS DARI PAYROLL".`
+                : `Belum ada data harga untuk Brand "${brandNama}" - Bagian "${bagianNama}" di Payroll.`;
+        } catch (e) {
+            if (info) info.textContent = 'Gagal memuat daftar Pekerjaan dari Payroll (' + (e.message || 'error') + ').';
+        }
+    }
+
+    function onResepPayrollPekerjaanChange() {
+        // Begitu Pekerjaan dipilih, langsung tarik harganya (biar 1 langkah lebih sedikit)
+        if (document.getElementById('resep-payroll-pekerjaan').value) ambilOngkosJahitDariPayrollKeResep();
+    }
+
+    function resetResepPayrollPekerjaanSelect() {
+        const el = document.getElementById('resep-payroll-pekerjaan');
+        if (el) el.innerHTML = '<option value="">-- Pekerjaan --</option>';
+    }
+
+    // Narik ongkos dari project Supabase Payroll (tabel payroll_harga) berdasarkan
+    // skema BRAND + BAGIAN + PEKERJAAN, hasilnya diisi ke draft resep (Nama Biaya + Rp/pcs)
+    // sebelum ditambahkan ke draft.
+    // Prioritas: 1) Bagian & Pekerjaan yang dipilih manual lewat dropdown Payroll di atas.
+    //            2) Fallback lama: setting "Bagian Jahit" (Pengaturan) dicocokkan otomatis ke nama Model.
+    async function ambilOngkosJahitDariPayrollKeResep() {
+        const info = document.getElementById('resep-payroll-info');
+        const modelId = document.getElementById('resep-pilih-model').value;
+        // Prioritas: Brand yang dipilih dari dropdown "BRAND (Payroll)" (dijamin cocok persis dengan data Payroll).
+        // Fallback: Brand Inventory di atas (untuk kompatibilitas kalau dropdown Payroll belum sempat dimuat/dipilih).
+        const elBrandPayroll = document.getElementById('resep-payroll-brand');
+        let brandNama = elBrandPayroll ? elBrandPayroll.value : '';
+        if (!brandNama) {
+            const brandId = document.getElementById('resep-pilih-brand').value;
+            if (!brandId) { showAlert('Pilih brand dulu!', {type:'warning'}); return; }
+            const brand = masterData.brand.find(b => String(b.id) === String(brandId));
+            if (!brand) return;
+            brandNama = (brand.nama || '').trim().toUpperCase();
+        }
+        if (!sbPayroll) { if (info) info.textContent = 'Koneksi ke Payroll belum siap. Isi manual saja.'; return; }
+        const elBagian = document.getElementById('resep-payroll-bagian');
+        const elPekerjaan = document.getElementById('resep-payroll-pekerjaan');
+        const bagianPilihan = elBagian ? elBagian.value : '';
+        const pekerjaanPilihan = elPekerjaan ? elPekerjaan.value : '';
+        if (info) info.textContent = 'Mengambil data ongkos dari Payroll...';
+        try {
+            let hasil = null;
+            if (bagianPilihan && pekerjaanPilihan) {
+                // Mode manual: pakai Bagian + Pekerjaan yang dipilih sendiri (skema BRAND + BAGIAN + PEKERJAAN)
+                const r = await sbPayroll.from('payroll_harga').select('id, data')
+                    .eq('data->>brand', brandNama).eq('data->>bagian', bagianPilihan).eq('data->>pekerjaan', pekerjaanPilihan).limit(1);
+                if (r.error) throw r.error;
+                if (r.data && r.data.length > 0) hasil = { harga: Number(r.data[0].data.harga) || 0, sumber: 'harga', bagian: bagianPilihan, pekerjaan: pekerjaanPilihan };
+            } else {
+                // Fallback: cocokkan otomatis pakai setting Bagian Jahit (Pengaturan) + nama Model
+                if (!modelId) { showAlert('Pilih Bagian & Pekerjaan di atas dulu (atau pilih Model untuk pencarian otomatis).', {type:'warning'}); return; }
+                const model = masterData.model.find(m => String(m.id) === String(modelId));
+                if (!model) return;
+                const modelNama = (model.nama || '').trim().toUpperCase();
+                hasil = await _cariOngkosJahitDiPayroll(brandNama, modelNama);
+                if (hasil) { hasil.bagian = hasil.bagian || payrollBagianJahit; hasil.pekerjaan = hasil.pekerjaan || modelNama; }
+            }
+            if (hasil) {
+                document.getElementById('resep-nama-biaya').value = 'Biaya ' + (hasil.pekerjaan ? hasil.pekerjaan.charAt(0) + hasil.pekerjaan.slice(1).toLowerCase() : 'Jahit');
+                document.getElementById('resep-biaya-per-pcs').value = hasil.harga;
+                if (info) info.textContent = `✅ Ongkos ditemukan: Rp ${hasil.harga.toLocaleString('id-ID')}/pcs (Brand ${brandNama}${hasil.bagian ? ' - Bagian ' + hasil.bagian : ''}${hasil.pekerjaan ? ' - Pekerjaan ' + hasil.pekerjaan : ''}). Klik "TAMBAH KE DRAFT" untuk memasukkannya.`;
+            } else {
+                if (info) info.textContent = `Belum ada harga di Payroll untuk Brand "${brandNama}"${bagianPilihan ? ' - Bagian "' + bagianPilihan + '"' : ''}${pekerjaanPilihan ? ' - Pekerjaan "' + pekerjaanPilihan + '"' : ''}. Isi Rp/pcs manual, atau tambahkan dulu di Payroll > Harga.`;
+            }
+        } catch (e) {
+            if (info) info.textContent = 'Gagal mengambil data dari Payroll (' + (e.message || 'error') + '). Isi manual.';
+        }
+    }
+
     function onResepBrandChange() {
         const brandId = document.getElementById('resep-pilih-brand').value;
         const models = masterData.model.filter(m => String(m.brandId) === String(brandId));
         const elModel = document.getElementById('resep-pilih-model');
         elModel.innerHTML = '<option value="">-- Model --</option>' + models.map(m => `<option value="${m.id}">${m.nama}</option>`).join('');
+        resetResepPayrollPekerjaanSelect();
+        resetResepPayrollBrandSelect();
+        if (resepInputMode === 'biaya') populateResepPayrollBrandOptions(true);
+        onResepModelChange();
+    }
+    function onResepModelChange() {
+        populateResepBahanOptions();
+        loadResepDraftForSelection();
+        // Kalau Bagian Payroll sudah dipilih, refresh daftar Pekerjaan sesuai Brand/Model terbaru
+        const elBagian = document.getElementById('resep-payroll-bagian');
+        if (elBagian && elBagian.value) onResepPayrollBagianChange();
+    }
+    // Muat ulang draft dari data tersimpan (dipanggil saat ganti brand/model, atau setelah SIMPAN)
+    function loadResepDraftForSelection() {
+        resepDraft = [];
+        resepDraftDirty = false;
+        const brandId = document.getElementById('resep-pilih-brand').value;
+        const modelId = document.getElementById('resep-pilih-model').value;
+        if (brandId && modelId) {
+            const brand = masterData.brand.find(b => String(b.id) === String(brandId));
+            const model = masterData.model.find(m => String(m.id) === String(modelId));
+            if (brand && model) {
+                resepDraft = masterData.resep.filter(r => r.brand === brand.nama && r.model === model.nama).map(r => ({
+                    dbId: r.id, tempKey: 'db-' + r.id, jenis: r.jenis || 'bahan',
+                    bahanBakuId: r.bahanBakuId, bahanNama: r.bahanNama, qtyPerPcs: r.qtyPerPcs || 0, biayaPerPcs: r.biayaPerPcs || 0
+                }));
+            }
+        }
         renderResepBomList();
     }
     function renderResepBomList() {
@@ -9753,62 +10838,136 @@ function updateSSK(tab, rowId) {
         const brandId = document.getElementById('resep-pilih-brand').value;
         const modelId = document.getElementById('resep-pilih-model').value;
         const countEl = document.getElementById('resep-bom-count');
+        const estEl = document.getElementById('resep-estimasi-hpp');
+        const dirtyBadge = document.getElementById('resep-dirty-badge');
+        if (dirtyBadge) dirtyBadge.classList.toggle('hidden', !resepDraftDirty);
         if (!brandId || !modelId) {
             list.innerHTML = '<div class="text-center text-black text-[11px] py-8 flex flex-col items-center gap-2"><i class="fa-solid fa-inbox text-2xl opacity-40"></i>Pilih brand & model dulu.</div>';
             if (countEl) countEl.textContent = '0 data';
+            if (estEl) estEl.textContent = 'Rp 0';
             return;
         }
-        const brand = masterData.brand.find(b => String(b.id) === String(brandId));
-        const model = masterData.model.find(m => String(m.id) === String(modelId));
-        if (!brand || !model) return;
-        const items = masterData.resep.filter(r => r.brand === brand.nama && r.model === model.nama);
-        if (countEl) countEl.textContent = items.length + ' data';
-        if (items.length === 0) {
-            list.innerHTML = '<div class="text-center text-black text-[11px] py-8 flex flex-col items-center gap-2"><i class="fa-solid fa-inbox text-2xl opacity-40"></i>Belum ada resep untuk model ini.</div>';
+        if (countEl) countEl.textContent = resepDraft.length + ' data';
+        if (resepDraft.length === 0) {
+            list.innerHTML = '<div class="text-center text-black text-[11px] py-8 flex flex-col items-center gap-2"><i class="fa-solid fa-inbox text-2xl opacity-40"></i>Belum ada komposisi. Tambah bahan/biaya dulu, lalu SIMPAN RESEP.</div>';
+            if (estEl) estEl.textContent = 'Rp 0';
             return;
         }
-        list.innerHTML = items.map(r => {
+        let estTotal = 0;
+        list.innerHTML = resepDraft.map(r => {
+            if (r.jenis === 'biaya') {
+                estTotal += (r.biayaPerPcs || 0);
+                return `
+                <div class="flex items-center justify-between px-4 py-2.5 hover:bg-darkBg transition-colors">
+                    <div class="min-w-0">
+                        <div class="text-[11px] font-bold text-black uppercase truncate">${r.bahanNama} <span class="text-[8px] font-black bg-amber-500/20 text-amber-700 px-1.5 py-0.5 rounded ml-1">BIAYA</span></div>
+                        <div class="text-[9px] text-black">Rp ${(r.biayaPerPcs || 0).toLocaleString('id-ID')} / pcs</div>
+                    </div>
+                    <button onclick="hapusResepDraftItem('${r.tempKey}')" class="w-7 h-7 rounded-lg bg-red-500/10 border-2 border-red-500/30 text-red-400 flex items-center justify-center hover:bg-red-500/20 transition-colors flex-shrink-0"><i class="fa-regular fa-trash-can text-[10px]"></i></button>
+                </div>`;
+            }
             const bahan = masterData.bahanBaku.find(b => b.id === r.bahanBakuId);
             const satuan = bahan ? bahan.satuan : '';
+            estTotal += (r.qtyPerPcs || 0) * (bahan ? bahan.hargaSatuan : 0);
             return `
             <div class="flex items-center justify-between px-4 py-2.5 hover:bg-darkBg transition-colors">
                 <div class="min-w-0">
                     <div class="text-[11px] font-bold text-black uppercase truncate">${r.bahanNama}</div>
                     <div class="text-[9px] text-black">${r.qtyPerPcs} ${satuan} / pcs</div>
                 </div>
-                <button onclick="hapusResepItem(${r.id})" class="w-7 h-7 rounded-lg bg-red-500/10 border-2 border-red-500/30 text-red-400 flex items-center justify-center hover:bg-red-500/20 transition-colors flex-shrink-0"><i class="fa-regular fa-trash-can text-[10px]"></i></button>
+                <button onclick="hapusResepDraftItem('${r.tempKey}')" class="w-7 h-7 rounded-lg bg-red-500/10 border-2 border-red-500/30 text-red-400 flex items-center justify-center hover:bg-red-500/20 transition-colors flex-shrink-0"><i class="fa-regular fa-trash-can text-[10px]"></i></button>
             </div>`;
         }).join('');
+        if (estEl) estEl.textContent = 'Rp ' + Math.round(estTotal).toLocaleString('id-ID');
     }
-    async function tambahResepItem() {
+    // Hanya menambah ke draft lokal — belum menyentuh database sama sekali
+    function tambahResepDraftItem() {
         const brandId = document.getElementById('resep-pilih-brand').value;
         const modelId = document.getElementById('resep-pilih-model').value;
-        const bahanId = document.getElementById('resep-pilih-bahan').value;
-        const qty = parseFloat(document.getElementById('resep-qty-per-pcs').value);
         if (!brandId || !modelId) { showAlert('Pilih brand & model dulu!', {type:'warning'}); return; }
-        if (!bahanId) { showAlert('Pilih bahan baku dulu!', {type:'warning'}); return; }
-        if (!qty || qty <= 0) { showAlert('Qty per pcs harus lebih dari 0!', {type:'warning'}); return; }
+        if (resepInputMode === 'bahan') {
+            const bahanId = document.getElementById('resep-pilih-bahan').value;
+            const qty = parseFloat(document.getElementById('resep-qty-per-pcs').value);
+            if (!bahanId) { showAlert('Pilih bahan baku dulu!', {type:'warning'}); return; }
+            if (!qty || qty <= 0) { showAlert('Qty per pcs harus lebih dari 0!', {type:'warning'}); return; }
+            const bahan = masterData.bahanBaku.find(b => String(b.id) === String(bahanId));
+            if (!bahan) return;
+            const sudahAda = resepDraft.some(r => r.jenis === 'bahan' && r.bahanBakuId === bahan.id);
+            if (sudahAda) { showToast('⚠️ Bahan ini sudah ada di draft resep!'); return; }
+            resepDraftSeq++;
+            resepDraft.push({ dbId: null, tempKey: 'new-' + resepDraftSeq, jenis: 'bahan', bahanBakuId: bahan.id, bahanNama: bahan.nama, qtyPerPcs: qty, biayaPerPcs: 0 });
+            document.getElementById('resep-qty-per-pcs').value = '';
+        } else {
+            const nama = (document.getElementById('resep-nama-biaya').value || '').trim();
+            const biaya = parseFloat(document.getElementById('resep-biaya-per-pcs').value);
+            if (!nama) { showAlert('Isi nama biaya dulu (misal: Biaya Jahit)!', {type:'warning'}); return; }
+            if (!biaya || biaya <= 0) { showAlert('Biaya per pcs harus lebih dari 0!', {type:'warning'}); return; }
+            const sudahAda = resepDraft.some(r => r.jenis === 'biaya' && r.bahanNama.toLowerCase() === nama.toLowerCase());
+            if (sudahAda) { showToast('⚠️ Komponen biaya ini sudah ada di draft resep!'); return; }
+            resepDraftSeq++;
+            resepDraft.push({ dbId: null, tempKey: 'new-' + resepDraftSeq, jenis: 'biaya', bahanBakuId: null, bahanNama: nama, qtyPerPcs: 0, biayaPerPcs: biaya });
+            document.getElementById('resep-nama-biaya').value = '';
+            document.getElementById('resep-biaya-per-pcs').value = '';
+        }
+        resepDraftDirty = true;
+        renderResepBomList();
+    }
+    function hapusResepDraftItem(tempKey) {
+        resepDraft = resepDraft.filter(r => r.tempKey !== tempKey);
+        resepDraftDirty = true;
+        renderResepBomList();
+    }
+    let _resepIsSaving = false;
+    async function simpanResepDraft() {
+        if (_resepIsSaving) return;
+        const brandId = document.getElementById('resep-pilih-brand').value;
+        const modelId = document.getElementById('resep-pilih-model').value;
+        if (!brandId || !modelId) { showAlert('Pilih brand & model dulu!', {type:'warning'}); return; }
         const brand = masterData.brand.find(b => String(b.id) === String(brandId));
         const model = masterData.model.find(m => String(m.id) === String(modelId));
-        const bahan = masterData.bahanBaku.find(b => String(b.id) === String(bahanId));
-        if (!brand || !model || !bahan) return;
-        const sudahAda = masterData.resep.some(r => r.brand === brand.nama && r.model === model.nama && r.bahanBakuId === bahan.id);
-        if (sudahAda) { showToast('⚠️ Bahan ini sudah ada di resep model ini!'); return; }
-        const { data, error } = await sbClient.from('resep_item').insert({
-            brand: brand.nama, model: model.nama, bahan_baku_id: bahan.id, bahan_nama: bahan.nama, qty_per_pcs: qty
-        }).select().single();
-        if (error) { showToast('❌ Gagal simpan resep. Jalankan SQL setup terbaru dulu.'); return; }
-        masterData.resep.push({ id: data.id, brand: data.brand, model: data.model, bahanBakuId: data.bahan_baku_id, bahanNama: data.bahan_nama, qtyPerPcs: Number(data.qty_per_pcs) || 0 });
-        document.getElementById('resep-qty-per-pcs').value = '';
-        renderResepBomList();
-        showToast('✅ Resep ditambahkan!');
+        if (!brand || !model) return;
+        if (resepDraft.length === 0) {
+            showConfirm('Draft kosong. Ini akan MENGHAPUS semua resep model ini (jika sebelumnya sudah ada). Lanjutkan?', async function() {
+                await _prosesSimpanResep(brand, model);
+            }, {title:'KOSONGKAN RESEP', type:'danger', icon:'⚠️', ok:'YA, KOSONGKAN'});
+            return;
+        }
+        await _prosesSimpanResep(brand, model);
     }
-    async function hapusResepItem(id) {
-        showConfirm('Hapus komposisi resep ini?', async function() {
-            await sbClient.from('resep_item').delete().eq('id', id);
-            masterData.resep = masterData.resep.filter(r => r.id !== id);
-            renderResepBomList();
-        }, {title:'HAPUS RESEP', type:'danger', icon:'🗑️', ok:'YA, HAPUS'});
+    async function _prosesSimpanResep(brand, model) {
+        _resepIsSaving = true;
+        const btn = document.getElementById('resep-simpan-btn');
+        if (btn) { btn.disabled = true; btn.classList.add('opacity-50'); }
+        try {
+            // Ganti seluruh resep model ini sekaligus (hapus lama, lalu insert draft saat ini) —
+            // supaya hasil akhirnya konsisten dengan apa yang terlihat di layar user.
+            const { error: delErr } = await sbClient.from('resep_item').delete().eq('brand', brand.nama).eq('model', model.nama);
+            if (delErr) { showToast('❌ Gagal menyimpan resep.'); return; }
+            let inserted = [];
+            if (resepDraft.length > 0) {
+                const rows = resepDraft.map(r => ({
+                    brand: brand.nama, model: model.nama, jenis: r.jenis,
+                    bahan_baku_id: r.jenis === 'bahan' ? r.bahanBakuId : null,
+                    bahan_nama: r.bahanNama,
+                    qty_per_pcs: r.jenis === 'bahan' ? r.qtyPerPcs : 0,
+                    biaya_per_pcs: r.jenis === 'biaya' ? r.biayaPerPcs : 0
+                }));
+                const { data, error: insErr } = await sbClient.from('resep_item').insert(rows).select();
+                if (insErr) { showToast('❌ Gagal menyimpan resep. Jalankan SQL setup terbaru dulu.'); return; }
+                inserted = data || [];
+            }
+            masterData.resep = masterData.resep.filter(r => !(r.brand === brand.nama && r.model === model.nama));
+            inserted.forEach(x => {
+                masterData.resep.push({ id: x.id, brand: x.brand, model: x.model, jenis: x.jenis || 'bahan', bahanBakuId: x.bahan_baku_id, bahanNama: x.bahan_nama, qtyPerPcs: Number(x.qty_per_pcs) || 0, biayaPerPcs: Number(x.biaya_per_pcs) || 0 });
+            });
+            resepDraftDirty = false;
+            loadResepDraftForSelection();
+            if (typeof renderProduksiBahanPreview === 'function') renderProduksiBahanPreview();
+            showToast('✅ Resep model "' + model.nama + '" tersimpan (' + inserted.length + ' item)!');
+        } finally {
+            _resepIsSaving = false;
+            if (btn) { btn.disabled = false; btn.classList.remove('opacity-50'); }
+        }
     }
 
     // ==================== MODUL HPP: PRODUKSI ====================
@@ -9820,6 +10979,80 @@ function updateSSK(tab, rowId) {
         const models = masterData.model.filter(m => String(m.brandId) === String(brandId));
         const elModel = document.getElementById('produksi-pilih-model');
         elModel.innerHTML = '<option value="">-- Model --</option>' + models.map(m => `<option value="${m.id}">${m.nama}</option>`).join('');
+        produksiOngkosJahitRate = null;
+        produksiTkManualOverride = false;
+        document.getElementById('produksi-biaya-tenaga-kerja').value = '';
+        renderProduksiBahanPreview();
+        onProduksiModelChange();
+    }
+
+    // ==================== AUTO ISI BIAYA TENAGA KERJA DARI PAYROLL ====================
+    let produksiOngkosJahitRate = null; // null = belum dicek / tidak ditemukan
+    let produksiTkManualOverride = false; // true kalau user sudah edit manual
+
+    function onProduksiModelChange() {
+        produksiTkManualOverride = false;
+        renderProduksiBahanPreview();
+        fetchOngkosJahitUntukProduksi();
+    }
+
+    function onProduksiQtyChange() {
+        renderProduksiBahanPreview();
+        applyOngkosJahitKeField();
+    }
+
+    function onProduksiBiayaTkManualEdit() {
+        produksiTkManualOverride = true;
+        const info = document.getElementById('produksi-tk-info');
+        if (info) info.textContent = 'Nilai diisi manual (tidak lagi mengikuti data Payroll otomatis).';
+        renderProduksiBahanPreview();
+    }
+
+    async function fetchOngkosJahitUntukProduksi() {
+        const ctx = _getProduksiResepAktif();
+        const info = document.getElementById('produksi-tk-info');
+        if (!ctx) {
+            produksiOngkosJahitRate = null;
+            if (info) info.textContent = 'Pilih brand & model dulu — ongkos jahit akan otomatis ditarik dari data Payroll (jika sudah diisi di sana). Nilainya tetap bisa diubah manual kalau perlu.';
+            return;
+        }
+        if (!sbPayroll) {
+            produksiOngkosJahitRate = null;
+            if (info) info.textContent = 'Koneksi ke Payroll belum siap. Isi Biaya Tenaga Kerja manual.';
+            return;
+        }
+        if (info) info.textContent = 'Mengambil data ongkos jahit dari Payroll...';
+        try {
+            const brandNama = (ctx.brand.nama || '').trim().toUpperCase();
+            const modelNama = (ctx.model.nama || '').trim().toUpperCase();
+            const hasil = await _cariOngkosJahitDiPayroll(brandNama, modelNama);
+            if (hasil) {
+                produksiOngkosJahitRate = hasil.harga;
+                if (hasil.sumber === 'harga') {
+                    if (info) info.textContent = `Ongkos jahit ditemukan: Rp ${produksiOngkosJahitRate.toLocaleString('id-ID')}/pcs (dari Payroll > Harga, bagian ${payrollBagianJahit}). Otomatis dikalikan qty produksi.`;
+                } else if (hasil.sumber === 'ongkos_jahit') {
+                    if (info) info.textContent = `Ongkos jahit ditemukan: Rp ${produksiOngkosJahitRate.toLocaleString('id-ID')}/pcs (dari Payroll). Otomatis dikalikan qty produksi.`;
+                } else {
+                    if (info) info.textContent = `Ongkos jahit ditemukan: Rp ${produksiOngkosJahitRate.toLocaleString('id-ID')}/pcs (data lama tanpa brand — buka Payroll dan simpan ulang untuk "${brandNama}" agar tidak ambigu). Otomatis dikalikan qty produksi.`;
+                }
+            } else {
+                produksiOngkosJahitRate = null;
+                if (info) info.textContent = `Brand "${brandNama}" - Model "${modelNama}" belum punya harga jahit di Payroll. Isi Biaya Tenaga Kerja manual, atau tambahkan dulu di Payroll > Harga${payrollBagianJahit ? ' (bagian ' + payrollBagianJahit + ')' : ''}.`;
+            }
+        } catch (e) {
+            produksiOngkosJahitRate = null;
+            if (info) info.textContent = 'Gagal mengambil data dari Payroll (' + (e.message || 'error') + '). Isi manual.';
+        }
+        applyOngkosJahitKeField();
+    }
+
+    function applyOngkosJahitKeField() {
+        if (produksiTkManualOverride) return;
+        if (produksiOngkosJahitRate === null) return;
+        const qty = parseInt(document.getElementById('produksi-qty')?.value) || 0;
+        const total = produksiOngkosJahitRate * qty;
+        const elTk = document.getElementById('produksi-biaya-tenaga-kerja');
+        if (elTk) elTk.value = total;
         renderProduksiBahanPreview();
     }
     function _getProduksiResepAktif() {
@@ -9839,43 +11072,61 @@ function updateSSK(tab, rowId) {
         const qty = parseInt(document.getElementById('produksi-qty')?.value) || 0;
         if (!ctx) {
             preview.innerHTML = '<div class="text-center text-black text-[11px] py-8 flex flex-col items-center gap-2"><i class="fa-solid fa-inbox text-2xl opacity-40"></i>Pilih brand, model & qty.</div>';
-            _hitungHppSummary([]);
+            _hitungHppSummary([], [], qty);
             return;
         }
-        if (ctx.items.length === 0) {
+        const bahanItems = ctx.items.filter(r => (r.jenis || 'bahan') === 'bahan');
+        const biayaItems = ctx.items.filter(r => r.jenis === 'biaya');
+        if (bahanItems.length === 0 && biayaItems.length === 0) {
             preview.innerHTML = '<div class="text-center text-black text-[11px] py-8 flex flex-col items-center gap-2"><i class="fa-solid fa-triangle-exclamation text-2xl opacity-40"></i>Model ini belum punya resep. Buat dulu di tab RESEP.</div>';
-            _hitungHppSummary([]);
+            _hitungHppSummary([], [], qty);
             return;
         }
-        const breakdown = ctx.items.map(r => {
+        const breakdown = bahanItems.map(r => {
             const bahan = masterData.bahanBaku.find(b => b.id === r.bahanBakuId);
-            return { nama: r.bahanNama, satuan: bahan ? bahan.satuan : '', butuh: r.qtyPerPcs * qty, stokTersedia: bahan ? bahan.stok : 0, hargaSatuan: bahan ? bahan.hargaSatuan : 0 };
+            const butuh = r.qtyPerPcs * qty;
+            const fifo = bahan ? simulasiFifoBahan(bahan.id, butuh) : { biaya: 0 };
+            return { nama: r.bahanNama, satuan: bahan ? bahan.satuan : '', butuh, stokTersedia: bahan ? bahan.stok : 0, biayaEstimasi: fifo.biaya };
         });
-        preview.innerHTML = breakdown.map(b => {
+        const biayaBreakdown = biayaItems.map(r => ({ nama: r.bahanNama, biayaPerPcs: r.biayaPerPcs || 0 }));
+        const bahanHtml = breakdown.map(b => {
             const cukup = b.butuh <= b.stokTersedia;
-            const subtotal = b.butuh * b.hargaSatuan;
+            const subtotal = b.biayaEstimasi;
             return `
             <div class="flex items-center justify-between px-4 py-2.5">
                 <div class="min-w-0">
                     <div class="text-[11px] font-bold text-black uppercase truncate">${b.nama}</div>
                     <div class="text-[9px] ${cukup ? 'text-black' : 'text-red-500 font-bold'}">Butuh: ${b.butuh.toLocaleString('id-ID')} ${b.satuan} • Stok: ${b.stokTersedia.toLocaleString('id-ID')} ${b.satuan}${cukup ? '' : ' ⚠️ TIDAK CUKUP'}</div>
                 </div>
-                <div class="text-[10px] font-bold text-black flex-shrink-0">Rp ${subtotal.toLocaleString('id-ID')}</div>
+                <div class="text-[10px] font-bold text-black flex-shrink-0">Rp ${Math.round(subtotal).toLocaleString('id-ID')}</div>
             </div>`;
         }).join('');
-        _hitungHppSummary(breakdown, qty);
+        const biayaHtml = biayaBreakdown.map(b => `
+            <div class="flex items-center justify-between px-4 py-2.5 bg-amber-500/5">
+                <div class="min-w-0">
+                    <div class="text-[11px] font-bold text-black uppercase truncate">${b.nama} <span class="text-[8px] font-black bg-amber-500/20 text-amber-700 px-1.5 py-0.5 rounded ml-1">BIAYA</span></div>
+                    <div class="text-[9px] text-black">Rp ${b.biayaPerPcs.toLocaleString('id-ID')} / pcs</div>
+                </div>
+                <div class="text-[10px] font-bold text-black flex-shrink-0">Rp ${(b.biayaPerPcs * qty).toLocaleString('id-ID')}</div>
+            </div>`).join('');
+        preview.innerHTML = bahanHtml + biayaHtml;
+        _hitungHppSummary(breakdown, biayaBreakdown, qty);
     }
-    function _hitungHppSummary(breakdown, qty) {
+    function _hitungHppSummary(breakdown, biayaBreakdown, qty) {
         qty = qty || 0;
-        const biayaBahan = breakdown.reduce((s, b) => s + (b.butuh * b.hargaSatuan), 0);
+        biayaBreakdown = biayaBreakdown || [];
+        const biayaBahan = breakdown.reduce((s, b) => s + (b.biayaEstimasi || 0), 0);
+        const biayaResepLain = biayaBreakdown.reduce((s, b) => s + (b.biayaPerPcs * qty), 0);
         const biayaTk = parseInt(document.getElementById('produksi-biaya-tenaga-kerja')?.value) || 0;
-        const totalHpp = biayaBahan + biayaTk;
+        const totalHpp = biayaBahan + biayaResepLain + biayaTk;
         const hppPerPcs = qty > 0 ? Math.round(totalHpp / qty) : 0;
         const elB = document.getElementById('produksi-hasil-biaya-bahan');
+        const elR = document.getElementById('produksi-hasil-biaya-resep-lain');
         const elT = document.getElementById('produksi-hasil-biaya-tk');
         const elH = document.getElementById('produksi-hasil-total-hpp');
         const elP = document.getElementById('produksi-hasil-hpp-pcs');
         if (elB) elB.textContent = 'Rp ' + biayaBahan.toLocaleString('id-ID');
+        if (elR) elR.textContent = 'Rp ' + biayaResepLain.toLocaleString('id-ID');
         if (elT) elT.textContent = 'Rp ' + biayaTk.toLocaleString('id-ID');
         if (elH) elH.textContent = 'Rp ' + totalHpp.toLocaleString('id-ID');
         if (elP) elP.textContent = 'Rp ' + hppPerPcs.toLocaleString('id-ID');
@@ -9945,18 +11196,24 @@ function updateSSK(tab, rowId) {
         if (totalAlokasi !== qty) { showAlert(`Total alokasi warna/ukuran (${totalAlokasi}) harus sama dengan qty produksi (${qty})!`, {type:'warning'}); return; }
         if (produksiAlokasi.length === 0 || produksiAlokasi.some(a => !a.warna || !a.ukuran || !a.qty)) { showAlert('Lengkapi semua baris alokasi (warna, ukuran, qty)!', {type:'warning'}); return; }
 
-        const kebutuhan = ctx.items.map(r => {
+        const itemBahan = ctx.items.filter(r => (r.jenis || 'bahan') === 'bahan');
+        const itemBiaya = ctx.items.filter(r => r.jenis === 'biaya');
+        const kebutuhan = itemBahan.map(r => {
             const bahan = masterData.bahanBaku.find(b => b.id === r.bahanBakuId);
-            return { bahan, butuh: r.qtyPerPcs * qty };
+            const butuh = r.qtyPerPcs * qty;
+            const fifo = bahan ? simulasiFifoBahan(bahan.id, butuh) : { biaya: 0, cukup: false, konsumsi: [] };
+            return { bahan, butuh, fifo };
         });
-        const kurang = kebutuhan.find(k => !k.bahan || k.butuh > k.bahan.stok);
+        const kurang = kebutuhan.find(k => !k.bahan || k.butuh > k.bahan.stok || !k.fifo.cukup);
         if (kurang) {
             showAlert(`Stok bahan "${kurang.bahan ? kurang.bahan.nama : '?'}" tidak cukup!\nButuh: ${kurang.butuh}\nStok: ${kurang.bahan ? kurang.bahan.stok : 0}`, {type:'danger', title:'⚠️ STOK BAHAN TIDAK CUKUP'});
             return;
         }
 
-        const biayaBahan = kebutuhan.reduce((s, k) => s + (k.butuh * k.bahan.hargaSatuan), 0);
-        const biayaTk = parseInt(document.getElementById('produksi-biaya-tenaga-kerja').value) || 0;
+        const biayaBahan = kebutuhan.reduce((s, k) => s + k.fifo.biaya, 0);
+        const biayaResepLain = itemBiaya.reduce((s, r) => s + ((r.biayaPerPcs || 0) * qty), 0);
+        const biayaTkManual = parseInt(document.getElementById('produksi-biaya-tenaga-kerja').value) || 0;
+        const biayaTk = biayaResepLain + biayaTkManual; // biaya lain dari resep (jahit/obras/dll) digabung ke kolom biaya_tenaga_kerja saat disimpan
         const totalHpp = biayaBahan + biayaTk;
         const hppPerPcs = Math.round(totalHpp / qty);
 
@@ -9986,6 +11243,14 @@ function updateSSK(tab, rowId) {
                 const stokBaru = k.bahan.stok - k.butuh;
                 const { error: bErr } = await sbClient.from('bahan_baku').update({ stok: stokBaru }).eq('id', k.bahan.id);
                 if (!bErr) k.bahan.stok = stokBaru;
+                if (k.fifo.konsumsi && k.fifo.konsumsi.length) await eksekusiFifoBahan(k.fifo.konsumsi);
+                // Perbarui harga referensi ke harga batch aktif berikutnya (FIFO), biar tampilan
+                // daftar bahan baku selalu menunjukkan harga yang relevan untuk restok/produksi selanjutnya.
+                const batchBerikutnya = getBatchAktifBahan(k.bahan.id)[0];
+                if (batchBerikutnya && batchBerikutnya.hargaBeli !== k.bahan.hargaSatuan) {
+                    const { error: hErr } = await sbClient.from('bahan_baku').update({ harga_satuan: batchBerikutnya.hargaBeli }).eq('id', k.bahan.id);
+                    if (!hErr) k.bahan.hargaSatuan = batchBerikutnya.hargaBeli;
+                }
             }
 
             const { data: rp, error: rpErr } = await sbClient.from('riwayat_produksi').insert({
@@ -10067,6 +11332,38 @@ function updateSSK(tab, rowId) {
             <div style="display:flex;gap:10px;">
                 <button onclick="tutupKoreksiStok()" style="flex:1;padding:13px;border:1px solid #e5e7eb;border-radius:12px;background:#fdf6ec;color:#000;font-family:Montserrat,sans-serif;font-weight:700;font-size:12px;cursor:pointer;">BATAL</button>
                 <button id="koreksi-btn-simpan" onclick="simpanKoreksiStok()" style="flex:2;padding:13px;border:none;border-radius:12px;background:linear-gradient(90deg,#ef4444,#f87171);color:#fff;font-family:Montserrat,sans-serif;font-weight:900;font-size:12px;cursor:pointer;letter-spacing:0.5px;">SIMPAN</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL RESTOK BAHAN BAKU (per-batch harga, FIFO) -->
+    <div id="modal-restock-bahan" class="hidden fixed inset-0 z-[999] items-end justify-center" style="background:rgba(0,0,0,0.7);">
+        <div style="background:#ffffff;border-radius:20px 20px 0 0;padding:24px 20px 32px;width:100%;max-width:480px;border-top:2px solid #22c55e;box-shadow:0 -10px 40px rgba(0,0,0,0.15);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                <span style="color:#22c55e;font-size:13px;font-weight:900;letter-spacing:1px;font-family:Montserrat,sans-serif;"><i class="fa-solid fa-boxes-packing mr-2"></i>RESTOK BAHAN BAKU</span>
+                <button onclick="tutupRestockBahan()" style="background:none;border:none;color:#000;font-size:20px;cursor:pointer;line-height:1;">&times;</button>
+            </div>
+            <div id="restock-info-text" style="font-size:12px;color:#1a1d24;font-family:Montserrat,sans-serif;margin-bottom:16px;line-height:1.6;"></div>
+            <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:10px;color:#166534;font-family:Montserrat,sans-serif;line-height:1.6;">
+                📦 Restok disimpan sebagai <b>batch terpisah</b>. Kalau harga beli kali ini beda dari sebelumnya, stok lama & baru tetap tercatat dengan harganya masing-masing (FIFO) — jadi HPP produksi tetap akurat.
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+                <div>
+                    <label style="display:block;font-size:10px;font-weight:700;color:#000;margin-bottom:6px;font-family:Montserrat,sans-serif;letter-spacing:0.5px;">QTY TAMBAH (<span id="restock-satuan-label"></span>)</label>
+                    <input id="restock-qty" type="number" inputmode="decimal" min="0" placeholder="0" style="width:100%;background:#f5f5f5;border:2px solid #e5e7eb;border-radius:10px;padding:10px 12px;font-size:14px;font-weight:700;color:#000;font-family:Montserrat,sans-serif;">
+                </div>
+                <div>
+                    <label style="display:block;font-size:10px;font-weight:700;color:#000;margin-bottom:6px;font-family:Montserrat,sans-serif;letter-spacing:0.5px;">HARGA BELI (Rp)</label>
+                    <input id="restock-harga" type="number" inputmode="numeric" min="0" placeholder="0" style="width:100%;background:#f5f5f5;border:2px solid #e5e7eb;border-radius:10px;padding:10px 12px;font-size:14px;font-weight:700;color:#000;font-family:Montserrat,sans-serif;">
+                </div>
+            </div>
+            <div style="margin-bottom:20px;">
+                <label style="display:block;font-size:10px;font-weight:700;color:#000;margin-bottom:6px;font-family:Montserrat,sans-serif;letter-spacing:0.5px;">KETERANGAN (opsional)</label>
+                <input id="restock-keterangan" type="text" placeholder="cth: beli dari vendor A, harga naik" style="width:100%;background:#f5f5f5;border:2px solid #e5e7eb;border-radius:10px;padding:10px 12px;font-size:12px;color:#000;font-family:Montserrat,sans-serif;">
+            </div>
+            <div style="display:flex;gap:10px;">
+                <button onclick="tutupRestockBahan()" style="flex:1;padding:13px;border:1px solid #e5e7eb;border-radius:12px;background:#fdf6ec;color:#000;font-family:Montserrat,sans-serif;font-weight:700;font-size:12px;cursor:pointer;">BATAL</button>
+                <button id="restock-btn-simpan" onclick="simpanRestockBahan()" style="flex:2;padding:13px;border:none;border-radius:12px;background:linear-gradient(90deg,#22c55e,#4ade80);color:#fff;font-family:Montserrat,sans-serif;font-weight:900;font-size:12px;cursor:pointer;letter-spacing:0.5px;">SIMPAN RESTOK</button>
             </div>
         </div>
     </div>
